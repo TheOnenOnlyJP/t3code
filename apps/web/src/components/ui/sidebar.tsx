@@ -723,8 +723,8 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
 function SidebarGroupLabel({ className, render, ...props }: useRender.ComponentProps<"div">) {
   const defaultProps = {
     className: cn(
-      "flex h-8 shrink-0 items-center rounded-lg px-2 font-medium text-sidebar-foreground text-xs outline-hidden ring-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-      "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
+      "flex h-[var(--sidebar-row-height)] shrink-0 items-center rounded-lg px-2 font-medium text-[length:var(--sidebar-text-secondary)] text-sidebar-foreground outline-hidden ring-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+      "group-data-[collapsible=icon]:mt-[calc(-1*var(--sidebar-row-height))] group-data-[collapsible=icon]:opacity-0",
       className,
     ),
     "data-sidebar": "group-label",
@@ -761,7 +761,7 @@ function SidebarGroupAction({ className, render, ...props }: useRender.Component
 function SidebarGroupContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("w-full text-sm", className)}
+      className={cn("w-full text-[length:var(--sidebar-text-primary)]", className)}
       data-sidebar="group-content"
       data-slot="sidebar-group-content"
       {...props}
@@ -800,10 +800,11 @@ const sidebarMenuButtonVariants = cva(
     },
     variants: {
       size: {
-        default: "h-8 rounded-md px-2.5 py-1.5 text-sm",
+        default:
+          "h-[var(--sidebar-row-height)] rounded-md px-2.5 py-[var(--sidebar-row-padding-y)] text-[length:var(--sidebar-text-primary)]",
         icon: "size-8 justify-center rounded-md p-0",
-        lg: "h-12 rounded-lg p-2 text-sm group-data-[collapsible=icon]:p-0!",
-        sm: "h-7 rounded-lg p-2 text-xs",
+        lg: "h-12 rounded-lg p-2 text-[length:var(--sidebar-text-primary)] group-data-[collapsible=icon]:p-0!",
+        sm: "h-[var(--sidebar-sub-row-height)] rounded-lg p-2 text-[length:var(--sidebar-text-secondary)]",
       },
       variant: {
         default: "font-medium text-sidebar-muted-foreground/80",
@@ -902,7 +903,7 @@ function SidebarMenuBadge({ className, ...props }: React.ComponentProps<"div">) 
   return (
     <div
       className={cn(
-        "pointer-events-none absolute right-1 flex h-5 min-w-5 select-none items-center justify-center rounded-lg px-1 font-medium text-sidebar-foreground text-xs tabular-nums",
+        "pointer-events-none absolute right-1 flex h-5 min-w-5 select-none items-center justify-center rounded-lg px-1 font-medium text-[length:var(--sidebar-text-secondary)] text-sidebar-foreground tabular-nums",
         "peer-hover/menu-button:text-sidebar-foreground peer-data-[active=true]/menu-button:text-sidebar-foreground",
         "peer-data-[size=sm]/menu-button:top-1",
         "peer-data-[size=default]/menu-button:top-1.5",
@@ -988,10 +989,10 @@ function SidebarMenuSubButton({
 }) {
   const defaultProps = {
     className: cn(
-      "-translate-x-px flex h-7 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 text-sidebar-foreground outline-hidden ring-ring hover:bg-sidebar-row-hover hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-row-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg:not([class*='size-'])]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted-foreground",
+      "-translate-x-px flex h-[var(--sidebar-sub-row-height)] min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 text-sidebar-foreground outline-hidden ring-ring hover:bg-sidebar-row-hover hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-row-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg:not([class*='size-'])]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted-foreground",
       "data-[active=true]:bg-sidebar-row-selected data-[active=true]:text-sidebar-foreground",
-      size === "sm" && "text-xs",
-      size === "md" && "text-sm",
+      size === "sm" && "text-[length:var(--sidebar-text-secondary)]",
+      size === "md" && "text-[length:var(--sidebar-text-primary)]",
       "group-data-[collapsible=icon]:hidden",
       className,
     ),

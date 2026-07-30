@@ -907,6 +907,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
    changing the color system when the beta is toggled. */
 [data-sidebar-version="v1"],
 [data-sidebar-version="v2"] {
+  --sidebar-text-primary: 0.875rem;
+  --sidebar-text-secondary: 0.75rem;
+  --sidebar-text-compact: 0.625rem;
+  --sidebar-row-height: 2rem;
+  --sidebar-row-padding-y: 0.375rem;
+  --sidebar-sub-row-height: 1.75rem;
+  --sidebar-slim-row-height: 2.25rem;
+  --sidebar-active-card-height: 4.875rem;
+  --sidebar-active-card-intrinsic-height: 6rem;
   --background: var(--color-zinc-25);
   --foreground: var(--color-zinc-800);
   --card: var(--color-white);
@@ -927,6 +936,39 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --sidebar-border: var(--color-zinc-200);
   --sidebar-stage-fade: var(--sidebar);
   background-color: var(--sidebar);
+}
+
+[data-sidebar-text-size="small"] {
+  --sidebar-text-primary: 0.8125rem;
+  --sidebar-text-secondary: 0.6875rem;
+  --sidebar-text-compact: 0.5625rem;
+  --sidebar-row-height: 1.75rem;
+  --sidebar-row-padding-y: 0.25rem;
+  --sidebar-sub-row-height: 1.5rem;
+  --sidebar-slim-row-height: 2rem;
+  --sidebar-active-card-height: 4.375rem;
+  --sidebar-active-card-intrinsic-height: 5.5rem;
+}
+
+[data-sidebar-text-size="large"] {
+  --sidebar-text-primary: 1rem;
+  --sidebar-text-secondary: 0.875rem;
+  --sidebar-text-compact: 0.75rem;
+  --sidebar-row-height: 2.25rem;
+  --sidebar-row-padding-y: 0.375rem;
+  --sidebar-sub-row-height: 2rem;
+  --sidebar-slim-row-height: 2.5rem;
+  --sidebar-active-card-height: 5.5rem;
+  --sidebar-active-card-intrinsic-height: 6.5rem;
+}
+
+@media (max-width: 639px) {
+  [data-sidebar-text-size="small"] {
+    --sidebar-row-height: 2rem;
+    --sidebar-row-padding-y: 0.375rem;
+    --sidebar-sub-row-height: 1.75rem;
+    --sidebar-slim-row-height: 2.25rem;
+  }
 }
 
 .dark [data-sidebar-version="v1"],

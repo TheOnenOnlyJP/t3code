@@ -32,10 +32,12 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+  DEFAULT_SIDEBAR_TEXT_SIZE,
   DEFAULT_UNIFIED_SETTINGS,
   type EnvironmentIdentificationMode,
   MAX_GLASS_OPACITY,
   MIN_GLASS_OPACITY,
+  type SidebarTextSize,
 } from "@t3tools/contracts/settings";
 import {
   getBackgroundActivityBaseProfile,
@@ -153,6 +155,12 @@ const THEME_OPTIONS = [
     label: "Dark",
   },
 ] as const;
+
+const SIDEBAR_TEXT_SIZE_LABELS: Record<SidebarTextSize, string> = {
+  small: "Small",
+  default: "Default",
+  large: "Large",
+};
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Artwork",
@@ -990,6 +998,40 @@ export function AppearanceSettingsPanel() {
                 {THEME_OPTIONS.map((option) => (
                   <SelectItem hideIndicator key={option.value} value={option.value}>
                     {option.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+
+        <SettingsRow
+          title="Sidebar text size"
+          description="Adjust sidebar text and spacing to show more content or improve readability."
+          resetAction={
+            settings.sidebarTextSize !== DEFAULT_SIDEBAR_TEXT_SIZE ? (
+              <SettingResetButton
+                label="sidebar text size"
+                onClick={() => updateSettings({ sidebarTextSize: DEFAULT_SIDEBAR_TEXT_SIZE })}
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarTextSize}
+              onValueChange={(value) => {
+                if (value === "small" || value === "default" || value === "large") {
+                  updateSettings({ sidebarTextSize: value });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label="Sidebar text size">
+                <SelectValue>{SIDEBAR_TEXT_SIZE_LABELS[settings.sidebarTextSize]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {Object.entries(SIDEBAR_TEXT_SIZE_LABELS).map(([value, label]) => (
+                  <SelectItem hideIndicator key={value} value={value}>
+                    {label}
                   </SelectItem>
                 ))}
               </SelectPopup>

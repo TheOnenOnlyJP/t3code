@@ -200,7 +200,7 @@ function JumpHintBadge(props: { label: string }) {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute right-1.5 top-1/2 z-10 inline-flex h-5 -translate-y-1/2 items-center rounded-full border border-border/80 bg-background/95 px-1.5 font-mono text-[10px] font-medium tracking-tight text-foreground shadow-sm"
+      className="pointer-events-none absolute right-1.5 top-1/2 z-10 inline-flex h-5 -translate-y-1/2 items-center rounded-full border border-border/80 bg-background/95 px-1.5 font-mono text-[length:var(--sidebar-text-compact)] font-medium tracking-tight text-foreground shadow-sm"
     >
       {props.label}
     </span>
@@ -353,7 +353,7 @@ function SnoozePopoverButton(props: {
             aria-label="Snooze thread"
             onClick={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
-            className="inline-flex h-full cursor-pointer items-center gap-0.5 rounded-md bg-transparent px-1.5 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex h-full cursor-pointer items-center gap-0.5 rounded-md bg-transparent px-1.5 text-[length:var(--sidebar-text-secondary)] text-muted-foreground hover:text-foreground"
           />
         }
       >
@@ -716,12 +716,12 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
       onBlur={handleRenameBlur}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
-      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-sm font-medium text-card-foreground outline-none focus:border-foreground"
+      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-[length:var(--sidebar-text-primary)] font-medium text-card-foreground outline-none focus:border-foreground"
     />
   ) : (
     <span
       className={cn(
-        "min-w-0 flex-1 text-sm",
+        "min-w-0 flex-1 text-[length:var(--sidebar-text-primary)]",
         shouldRecede ? "font-normal" : "font-medium",
         variant === "card"
           ? cn(
@@ -754,7 +754,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
         type="button"
         onClick={handlePrClick}
         className={cn(
-          "shrink-0 font-mono text-xs hover:underline",
+          "shrink-0 font-mono text-[length:var(--sidebar-text-secondary)] hover:underline",
           variant === "slim" && variantAction === "unsettle"
             ? props.isActive
               ? "text-muted-foreground/70"
@@ -781,7 +781,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     return (
       <li
         data-thread-item
-        className="list-none [content-visibility:auto] [contain-intrinsic-size:auto_34px]"
+        className="list-none [content-visibility:auto] [contain-intrinsic-size:auto_var(--sidebar-slim-row-height)]"
       >
         <Tooltip>
           <TooltipTrigger
@@ -790,7 +790,10 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                 role="button"
                 tabIndex={0}
                 data-testid="sidebar-v2-row-slim"
-                className={cn(rowSurfaceClassName, "flex h-9 items-center gap-2.5 px-2.5")}
+                className={cn(
+                  rowSurfaceClassName,
+                  "flex h-[var(--sidebar-slim-row-height)] items-center gap-2.5 px-2.5",
+                )}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onKeyDown={handleKeyDown}
@@ -825,7 +828,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                 {variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
                   // Snoozed rows show when they come BACK, not when they were
                   // last touched — the return ticket is the row's whole story.
-                  <span className="text-xs text-blue-600 tabular-nums dark:text-blue-400">
+                  <span className="text-[length:var(--sidebar-text-secondary)] text-blue-600 tabular-nums dark:text-blue-400">
                     {props.snoozeWakeLabelText}
                   </span>
                 ) : isWoke ? (
@@ -834,13 +837,13 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                   <span
                     role="status"
                     aria-label="Woke from snooze"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300"
+                    className="inline-flex items-center gap-1 text-[length:var(--sidebar-text-secondary)] font-medium text-amber-700 dark:text-amber-300"
                   >
                     <AlarmClockIcon aria-hidden className="size-3" />
                     Woke
                   </span>
                 ) : (
-                  <span className="text-xs">
+                  <span className="text-[length:var(--sidebar-text-secondary)]">
                     {variantAction === "unsettle"
                       ? settledTimeLabel(thread)
                       : threadTimeLabel(thread)}
@@ -853,7 +856,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                     type="button"
                     aria-label="Wake thread now"
                     onClick={handleUnsnoozeClick}
-                    className="absolute inset-y-0 right-0 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-2 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
+                    className="absolute inset-y-0 right-0 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-2 text-[length:var(--sidebar-text-secondary)] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
                   >
                     <AlarmClockOffIcon className="size-3" />
                   </button>
@@ -863,7 +866,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                   type="button"
                   aria-label="Un-settle thread"
                   onClick={handleUnsettleClick}
-                  className="absolute inset-y-0 right-0 -mr-1 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-1.5 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
+                  className="absolute inset-y-0 right-0 -mr-1 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-1.5 text-[length:var(--sidebar-text-secondary)] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
                 >
                   <Undo2Icon className="mb-px size-3.5" />
                 </button>
@@ -872,7 +875,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                   type="button"
                   aria-label="Settle thread"
                   onClick={handleSettleClick}
-                  className="absolute inset-y-0 right-0 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-2 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
+                  className="absolute inset-y-0 right-0 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-2 text-[length:var(--sidebar-text-secondary)] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/v2-row:opacity-100"
                 >
                   <CheckIcon className="size-3" />
                 </button>
@@ -891,7 +894,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
   return (
     <li
       data-thread-item
-      className="list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_96px]"
+      className="list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_var(--sidebar-active-card-intrinsic-height)]"
     >
       <Tooltip>
         <TooltipTrigger
@@ -908,7 +911,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
             />
           }
         >
-          <div className="relative z-10 h-[4.875rem] px-2.5 py-2">
+          <div className="relative z-10 h-[var(--sidebar-active-card-height)] px-2.5 py-2">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               <ProjectFavicon
                 environmentId={thread.environmentId}
@@ -918,7 +921,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
               {props.projectTitle ? (
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate text-xs text-muted-foreground/85",
+                    "min-w-0 flex-1 truncate text-[length:var(--sidebar-text-secondary)] text-muted-foreground/85",
                     shouldRecede ? "font-normal" : "font-medium",
                   )}
                 >
@@ -931,7 +934,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                   actions on hover/focus or while the popover is open. Keeping
                   the hidden state out of flow lets the project label reclaim
                   space without either state overlapping it. */}
-              <span className="group/v2-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-xs">
+              <span className="group/v2-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-[length:var(--sidebar-text-secondary)]">
                 {/* pointer-events-none: while hovered this label is absolute
                     + opacity-0, which paints it ABOVE the in-flow settle/snooze
                     buttons; without it the invisible label eats their clicks. */}
@@ -988,7 +991,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                         type="button"
                         aria-label="Settle thread"
                         onClick={handleSettleClick}
-                        className="-mr-1 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        className="-mr-1 inline-flex cursor-pointer items-center gap-1 rounded-md bg-transparent px-1.5 text-[length:var(--sidebar-text-secondary)] text-muted-foreground hover:text-foreground"
                       >
                         <CheckIcon className="size-3.5" />
                         Settle
@@ -999,7 +1002,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
               </span>
             </div>
             <div className="mt-1 flex min-w-0">{title}</div>
-            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/75">
+            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[length:var(--sidebar-text-secondary)] text-muted-foreground/75">
               {thread.branch ? (
                 <span className="min-w-0 flex-1 truncate whitespace-nowrap">{thread.branch}</span>
               ) : (
@@ -2341,7 +2344,7 @@ export default function SidebarV2() {
                   <SearchIcon />
                   <div className="flex-1 truncate text-left">Search</div>
                   {commandPaletteShortcutLabel ? (
-                    <Kbd className="mr-px h-4 min-w-0 rounded-sm bg-sidebar-control-surface px-1.5 text-[10px] text-sidebar-muted-foreground ring-1 ring-sidebar-border">
+                    <Kbd className="mr-px h-4 min-w-0 rounded-sm bg-sidebar-control-surface px-1.5 text-[length:var(--sidebar-text-compact)] text-sidebar-muted-foreground ring-1 ring-sidebar-border">
                       {commandPaletteShortcutLabel}
                     </Kbd>
                   ) : null}
@@ -2582,7 +2585,7 @@ export default function SidebarV2() {
                         data-testid="sidebar-v2-snoozed-shelf-toggle"
                         className="mb-1 mt-3 flex w-full cursor-pointer items-center gap-2 px-2.5 text-left"
                       >
-                        <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        <span className="text-[length:var(--sidebar-text-secondary)] font-medium text-blue-600 dark:text-blue-400">
                           {snoozedShelfExpanded ? "Snoozed" : `Snoozed (${snoozedThreads.length})`}
                         </span>
                         <span className="h-px flex-1 bg-blue-500/20 dark:bg-blue-400/15" />
@@ -2610,7 +2613,7 @@ export default function SidebarV2() {
                         data-testid="sidebar-v2-settled-shelf-toggle"
                         className="mb-1 mt-3 flex w-full cursor-pointer items-center gap-2 px-2.5 text-left"
                       >
-                        <span className="text-xs font-medium text-muted-foreground/50">
+                        <span className="text-[length:var(--sidebar-text-secondary)] font-medium text-muted-foreground/50">
                           {settledShelfExpanded ? "Settled" : `Settled (${settledThreads.length})`}
                         </span>
                         <span className="h-px flex-1 bg-sidebar-border/60" />
@@ -2635,7 +2638,7 @@ export default function SidebarV2() {
                   <button
                     type="button"
                     onClick={showMoreSettled}
-                    className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+                    className="flex h-[var(--sidebar-slim-row-height)] w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-[length:var(--sidebar-text-primary)] text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
                   >
                     <PlusIcon aria-hidden className="size-4 shrink-0" />
                     Show {Math.min(hiddenSettledCount, SETTLED_TAIL_PAGE_COUNT)} more
@@ -2645,7 +2648,7 @@ export default function SidebarV2() {
             </ul>
           </TooltipProvider>
           {activeThreads.length + snoozedThreads.length + settledThreads.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-xs text-muted-foreground/60">
+            <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-[length:var(--sidebar-text-secondary)] text-muted-foreground/60">
               {projects.length === 0 ? (
                 <>
                   <span>No projects yet</span>

@@ -111,6 +111,22 @@ describe("ClientSettings sidebar v2", () => {
   });
 });
 
+describe("ClientSettings sidebar text size", () => {
+  it("defaults legacy settings to the current sidebar scale", () => {
+    expect(decodeClientSettings({}).sidebarTextSize).toBe("default");
+  });
+
+  it.each(["small", "default", "large"] as const)("accepts %s", (sidebarTextSize) => {
+    expect(decodeClientSettings({ sidebarTextSize }).sidebarTextSize).toBe(sidebarTextSize);
+    expect(decodeClientSettingsPatch({ sidebarTextSize }).sidebarTextSize).toBe(sidebarTextSize);
+  });
+
+  it("rejects unsupported values", () => {
+    expect(() => decodeClientSettings({ sidebarTextSize: "tiny" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ sidebarTextSize: "tiny" })).toThrow();
+  });
+});
+
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});

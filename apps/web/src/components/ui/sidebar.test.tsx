@@ -54,10 +54,11 @@ describe("sidebar interactive cursors", () => {
     const html = renderSidebarButton();
 
     expect(html).toContain('data-slot="sidebar-menu-button"');
-    expect(html).toContain("h-8");
+    expect(html).toContain("h-[var(--sidebar-row-height)]");
     expect(html).toContain("rounded-md");
     expect(html).toContain("px-2");
-    expect(html).toContain("py-1.5");
+    expect(html).toContain("py-[var(--sidebar-row-padding-y)]");
+    expect(html).toContain("text-[length:var(--sidebar-text-primary)]");
     expect(html).toContain("]:size-4");
     expect(html).toContain("]:shrink-0");
     expect(html).toContain("cursor-pointer");
@@ -77,6 +78,7 @@ describe("sidebar interactive cursors", () => {
     expect(html).toContain("p-0");
     expect(html).toContain("font-medium");
     expect(html).toContain("text-sidebar-muted-foreground/80");
+    expect(html).not.toContain("h-[var(--sidebar-row-height)]");
   });
 
   it("lets project drag handles override the default pointer cursor", () => {
@@ -95,6 +97,8 @@ describe("sidebar interactive cursors", () => {
 
     expect(html).toContain('data-slot="sidebar-menu-action"');
     expect(html).toContain("cursor-pointer");
+    expect(html).toContain("after:-inset-2");
+    expect(html).toContain("md:after:hidden");
   });
 
   it("uses a pointer cursor for submenu buttons", () => {
@@ -104,5 +108,19 @@ describe("sidebar interactive cursors", () => {
 
     expect(html).toContain('data-slot="sidebar-menu-sub-button"');
     expect(html).toContain("cursor-pointer");
+    expect(html).toContain("h-[var(--sidebar-sub-row-height)]");
+  });
+
+  it.each([
+    ["sm", "text-[length:var(--sidebar-text-secondary)]"],
+    ["md", "text-[length:var(--sidebar-text-primary)]"],
+  ] as const)("uses the semantic sidebar type scale for %s submenu buttons", (size, className) => {
+    const html = renderToStaticMarkup(
+      <SidebarMenuSubButton size={size} render={<button type="button" />}>
+        Show more
+      </SidebarMenuSubButton>,
+    );
+
+    expect(html).toContain(className);
   });
 });
