@@ -21,9 +21,16 @@ export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 export const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
 
-export const SidebarTextSize = Schema.Literals(["small", "default", "large"]);
-export type SidebarTextSize = typeof SidebarTextSize.Type;
-export const DEFAULT_SIDEBAR_TEXT_SIZE: SidebarTextSize = "default";
+export const MIN_SIDEBAR_TEXT_SCALE = 75;
+export const MAX_SIDEBAR_TEXT_SCALE = 125;
+export const SidebarTextScale = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_SIDEBAR_TEXT_SCALE,
+    maximum: MAX_SIDEBAR_TEXT_SCALE,
+  }),
+);
+export type SidebarTextScale = typeof SidebarTextScale.Type;
+export const DEFAULT_SIDEBAR_TEXT_SCALE: SidebarTextScale = 100;
 
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
@@ -124,8 +131,8 @@ export const ClientSettingsSchema = Schema.Struct({
   sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT)),
   ),
-  sidebarTextSize: SidebarTextSize.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_TEXT_SIZE)),
+  sidebarTextScale: SidebarTextScale.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_TEXT_SCALE)),
   ),
   sidebarV2Enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   // Whether `sidebarV2Enabled` reflects an explicit choice in Settings → Beta.
@@ -716,7 +723,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarProjectSortOrder: Schema.optionalKey(SidebarProjectSortOrder),
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   sidebarThreadPreviewCount: Schema.optionalKey(SidebarThreadPreviewCount),
-  sidebarTextSize: Schema.optionalKey(SidebarTextSize),
+  sidebarTextScale: Schema.optionalKey(SidebarTextScale),
   sidebarV2Enabled: Schema.optionalKey(Schema.Boolean),
   sidebarV2ConfiguredByUser: Schema.optionalKey(Schema.Boolean),
   timestampFormat: Schema.optionalKey(TimestampFormat),

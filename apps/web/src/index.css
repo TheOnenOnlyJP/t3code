@@ -938,36 +938,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   background-color: var(--sidebar);
 }
 
-[data-sidebar-text-size="small"] {
-  --sidebar-text-primary: 0.8125rem;
-  --sidebar-text-secondary: 0.6875rem;
-  --sidebar-text-compact: 0.5625rem;
-  --sidebar-row-height: 1.75rem;
-  --sidebar-row-padding-y: 0.25rem;
-  --sidebar-sub-row-height: 1.5rem;
-  --sidebar-slim-row-height: 2rem;
-  --sidebar-active-card-height: 4.375rem;
-  --sidebar-active-card-intrinsic-height: 5.5rem;
-}
-
-[data-sidebar-text-size="large"] {
-  --sidebar-text-primary: 1rem;
-  --sidebar-text-secondary: 0.875rem;
-  --sidebar-text-compact: 0.75rem;
-  --sidebar-row-height: 2.25rem;
-  --sidebar-row-padding-y: 0.375rem;
-  --sidebar-sub-row-height: 2rem;
-  --sidebar-slim-row-height: 2.5rem;
-  --sidebar-active-card-height: 5.5rem;
-  --sidebar-active-card-intrinsic-height: 6.5rem;
-}
-
 @media (max-width: 639px) {
-  [data-sidebar-text-size="small"] {
-    --sidebar-row-height: 2rem;
-    --sidebar-row-padding-y: 0.375rem;
-    --sidebar-sub-row-height: 1.75rem;
-    --sidebar-slim-row-height: 2.25rem;
+  [data-sidebar-compact] {
+    --sidebar-row-height: 2rem !important;
+    --sidebar-row-padding-y: 0.375rem !important;
+    --sidebar-sub-row-height: 1.75rem !important;
+    --sidebar-slim-row-height: 2.25rem !important;
   }
 }
 

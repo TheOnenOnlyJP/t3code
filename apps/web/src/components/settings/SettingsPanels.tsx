@@ -32,12 +32,13 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
-  DEFAULT_SIDEBAR_TEXT_SIZE,
+  DEFAULT_SIDEBAR_TEXT_SCALE,
   DEFAULT_UNIFIED_SETTINGS,
   type EnvironmentIdentificationMode,
   MAX_GLASS_OPACITY,
+  MAX_SIDEBAR_TEXT_SCALE,
   MIN_GLASS_OPACITY,
-  type SidebarTextSize,
+  MIN_SIDEBAR_TEXT_SCALE,
 } from "@t3tools/contracts/settings";
 import {
   getBackgroundActivityBaseProfile,
@@ -155,12 +156,6 @@ const THEME_OPTIONS = [
     label: "Dark",
   },
 ] as const;
-
-const SIDEBAR_TEXT_SIZE_LABELS: Record<SidebarTextSize, string> = {
-  small: "Small",
-  default: "Default",
-  large: "Large",
-};
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Artwork",
@@ -968,6 +963,13 @@ export function AppearanceSettingsPanel() {
     "--glass-slider-progress": `${glassOpacityRatio * 100}%`,
     "--glass-slider-fill-offset": `${0.5 - glassOpacityRatio}rem`,
   } as CSSProperties;
+  const sidebarTextScaleRatio =
+    (settings.sidebarTextScale - MIN_SIDEBAR_TEXT_SCALE) /
+    (MAX_SIDEBAR_TEXT_SCALE - MIN_SIDEBAR_TEXT_SCALE);
+  const sidebarTextScaleSliderStyle = {
+    "--glass-slider-progress": `${sidebarTextScaleRatio * 100}%`,
+    "--glass-slider-fill-offset": `${0.5 - sidebarTextScaleRatio}rem`,
+  } as CSSProperties;
 
   return (
     <SettingsPageContainer>
@@ -1009,33 +1011,43 @@ export function AppearanceSettingsPanel() {
           title="Sidebar text size"
           description="Adjust sidebar text and spacing to show more content or improve readability."
           resetAction={
-            settings.sidebarTextSize !== DEFAULT_SIDEBAR_TEXT_SIZE ? (
+            settings.sidebarTextScale !== DEFAULT_SIDEBAR_TEXT_SCALE ? (
               <SettingResetButton
                 label="sidebar text size"
-                onClick={() => updateSettings({ sidebarTextSize: DEFAULT_SIDEBAR_TEXT_SIZE })}
+                onClick={() => updateSettings({ sidebarTextScale: DEFAULT_SIDEBAR_TEXT_SCALE })}
               />
             ) : null
           }
           control={
-            <Select
-              value={settings.sidebarTextSize}
-              onValueChange={(value) => {
-                if (value === "small" || value === "default" || value === "large") {
-                  updateSettings({ sidebarTextSize: value });
-                }
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-40" aria-label="Sidebar text size">
-                <SelectValue>{SIDEBAR_TEXT_SIZE_LABELS[settings.sidebarTextSize]}</SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                {Object.entries(SIDEBAR_TEXT_SIZE_LABELS).map(([value, label]) => (
-                  <SelectItem hideIndicator key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
+            <div className="flex w-full items-center gap-3 sm:w-52">
+              <output
+                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                htmlFor="sidebar-text-scale"
+              >
+                {settings.sidebarTextScale}%
+              </output>
+              <input
+                aria-label="Sidebar text size"
+                className="glass-opacity-slider min-w-0 flex-1"
+                id="sidebar-text-scale"
+                max={MAX_SIDEBAR_TEXT_SCALE}
+                min={MIN_SIDEBAR_TEXT_SCALE}
+                onChange={(event) => {
+                  const sidebarTextScale = Number(event.currentTarget.value);
+                  if (
+                    Number.isInteger(sidebarTextScale) &&
+                    sidebarTextScale >= MIN_SIDEBAR_TEXT_SCALE &&
+                    sidebarTextScale <= MAX_SIDEBAR_TEXT_SCALE
+                  ) {
+                    updateSettings({ sidebarTextScale });
+                  }
+                }}
+                step={1}
+                style={sidebarTextScaleSliderStyle}
+                type="range"
+                value={settings.sidebarTextScale}
+              />
+            </div>
           }
         />
 

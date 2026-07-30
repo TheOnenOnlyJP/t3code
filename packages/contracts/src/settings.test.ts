@@ -111,19 +111,19 @@ describe("ClientSettings sidebar v2", () => {
   });
 });
 
-describe("ClientSettings sidebar text size", () => {
+describe("ClientSettings sidebar text scale", () => {
   it("defaults legacy settings to the current sidebar scale", () => {
-    expect(decodeClientSettings({}).sidebarTextSize).toBe("default");
+    expect(decodeClientSettings({}).sidebarTextScale).toBe(100);
   });
 
-  it.each(["small", "default", "large"] as const)("accepts %s", (sidebarTextSize) => {
-    expect(decodeClientSettings({ sidebarTextSize }).sidebarTextSize).toBe(sidebarTextSize);
-    expect(decodeClientSettingsPatch({ sidebarTextSize }).sidebarTextSize).toBe(sidebarTextSize);
+  it.each([75, 92, 100, 113, 125])("accepts a scale within the supported range: %s", (value) => {
+    expect(decodeClientSettings({ sidebarTextScale: value }).sidebarTextScale).toBe(value);
+    expect(decodeClientSettingsPatch({ sidebarTextScale: value }).sidebarTextScale).toBe(value);
   });
 
-  it("rejects unsupported values", () => {
-    expect(() => decodeClientSettings({ sidebarTextSize: "tiny" })).toThrow();
-    expect(() => decodeClientSettingsPatch({ sidebarTextSize: "tiny" })).toThrow();
+  it.each([74, 126, 99.5])("rejects an invalid scale: %s", (value) => {
+    expect(() => decodeClientSettings({ sidebarTextScale: value })).toThrow();
+    expect(() => decodeClientSettingsPatch({ sidebarTextScale: value })).toThrow();
   });
 });
 

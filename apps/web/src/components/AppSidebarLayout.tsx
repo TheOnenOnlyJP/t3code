@@ -40,6 +40,27 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
+const SIDEBAR_SCALE_VARIABLES = {
+  "--sidebar-text-primary": { base: 0.875, sensitivity: 0.875 },
+  "--sidebar-text-secondary": { base: 0.75, sensitivity: 0.75 },
+  "--sidebar-text-compact": { base: 0.625, sensitivity: 0.625 },
+  "--sidebar-row-height": { base: 2, sensitivity: 1 },
+  "--sidebar-row-padding-y": { base: 0.375, sensitivity: 0.5 },
+  "--sidebar-sub-row-height": { base: 1.75, sensitivity: 1 },
+  "--sidebar-slim-row-height": { base: 2.25, sensitivity: 1 },
+  "--sidebar-active-card-height": { base: 4.875, sensitivity: 2 },
+  "--sidebar-active-card-intrinsic-height": { base: 6, sensitivity: 2 },
+} as const;
+
+function sidebarScaleStyle(scalePercent: number): CSSProperties {
+  const scaleDelta = scalePercent / 100 - 1;
+  return Object.fromEntries(
+    Object.entries(SIDEBAR_SCALE_VARIABLES).map(([property, { base, sensitivity }]) => [
+      property,
+      `${base + scaleDelta * sensitivity}rem`,
+    ]),
+  ) as CSSProperties;
+}
 
 function subscribeToViewportWidth(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
@@ -123,7 +144,7 @@ function SidebarControl() {
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const sidebarV2Enabled = useSidebarV2Enabled();
-  const sidebarTextSize = useClientSettings((settings) => settings.sidebarTextSize);
+  const sidebarTextScale = useClientSettings((settings) => settings.sidebarTextScale);
   // Settings routes render the settings nav, which lives in the v1 component
   // and is identical for both sidebars — so v1 stays mounted there.
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -193,8 +214,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         side="left"
         collapsible="offcanvas"
         data-app-sidebar=""
-        data-sidebar-text-size={sidebarTextSize}
+        data-sidebar-compact={sidebarTextScale < 100 ? "" : undefined}
         data-sidebar-version={useSidebarV2Theme ? "v2" : "v1"}
+        style={sidebarScaleStyle(sidebarTextScale)}
         className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
         resizable={{
           maxWidth: sidebarMaximumWidth,
