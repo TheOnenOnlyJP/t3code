@@ -61,7 +61,9 @@ export function getThreadSortTimestamp(
   thread: ThreadSortInput,
   sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
 ): number {
-  if (sortOrder === "created_at") {
+  // Manual ordering is owned by clients that have a persisted drag order.
+  // Other surfaces use creation order as the stable fallback.
+  if (sortOrder === "created_at" || sortOrder === "manual") {
     return (
       getFirstSortableTimestamp(thread.createdAt, thread.updatedAt) ?? Number.NEGATIVE_INFINITY
     );

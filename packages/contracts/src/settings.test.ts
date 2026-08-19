@@ -35,6 +35,27 @@ describe("ClientSettings word wrap", () => {
   });
 });
 
+describe("ClientSettings browser dev server routing", () => {
+  it("defaults to the connected environment host", () => {
+    expect(decodeClientSettings({}).browserDevServerRouting).toBe("environment-host");
+  });
+
+  it.each(["environment-host", "client-localhost"] as const)(
+    "accepts the supported routing mode: %s",
+    (browserDevServerRouting) => {
+      expect(decodeClientSettingsPatch({ browserDevServerRouting }).browserDevServerRouting).toBe(
+        browserDevServerRouting,
+      );
+    },
+  );
+
+  it("rejects unsupported routing modes", () => {
+    expect(() =>
+      decodeClientSettingsPatch({ browserDevServerRouting: "server-localhost" }),
+    ).toThrow();
+  });
+});
+
 describe("ClientSettings glass opacity", () => {
   it("defaults to a readable translucent surface", () => {
     expect(decodeClientSettings({}).glassOpacity).toBe(80);
@@ -73,8 +94,36 @@ describe("ClientSettings sidebar", () => {
   it("defaults to the current sidebar with automatic merge and inactivity settling", () => {
     const settings = decodeClientSettings({});
     expect(settings.legacySidebarEnabled).toBe(false);
+    expect(settings.sidebarVisibilityMode).toBe("docked");
+    expect(settings.sidebarAutoHideTransitionDurationMs).toBe(150);
     expect(settings.sidebarAutoSettleAfterDays).toBe(3);
     expect(settings.sidebarAutoSettleOnMerge).toBe(true);
+  });
+
+  it.each(["docked", "auto-hide"] as const)(
+    "accepts the supported visibility mode: %s",
+    (sidebarVisibilityMode) => {
+      expect(decodeClientSettingsPatch({ sidebarVisibilityMode }).sidebarVisibilityMode).toBe(
+        sidebarVisibilityMode,
+      );
+    },
+  );
+
+  it("rejects unsupported visibility modes", () => {
+    expect(() => decodeClientSettingsPatch({ sidebarVisibilityMode: "floating" })).toThrow();
+  });
+
+  it.each([0, 150, 500])("accepts a sidebar transition duration: %s ms", (durationMs) => {
+    expect(
+      decodeClientSettingsPatch({ sidebarAutoHideTransitionDurationMs: durationMs })
+        .sidebarAutoHideTransitionDurationMs,
+    ).toBe(durationMs);
+  });
+
+  it.each([-1, 501, 150.5])("rejects an invalid sidebar transition duration: %s", (durationMs) => {
+    expect(() =>
+      decodeClientSettingsPatch({ sidebarAutoHideTransitionDurationMs: durationMs }),
+    ).toThrow();
   });
 
   it("drops the retired sidebar v2 beta keys, resetting everyone to the default", () => {

@@ -21,6 +21,18 @@ function makeThread(overrides: Partial<TestThread> = {}): TestThread {
 }
 
 describe("sortThreads", () => {
+  it("uses creation order as the fallback on clients without manual ordering", () => {
+    const sorted = sortThreads(
+      [
+        makeThread({ id: "older", createdAt: "2026-03-09T08:00:00.000Z" }),
+        makeThread({ id: "newer", createdAt: "2026-03-09T12:00:00.000Z" }),
+      ],
+      "manual",
+    );
+
+    expect(sorted.map((thread) => thread.id)).toEqual(["newer", "older"]);
+  });
+
   it("falls back to updatedAt and createdAt when latestUserMessageAt is invalid and there are no messages", () => {
     const sorted = sortThreads(
       [

@@ -15,6 +15,7 @@ import {
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
+  orderThreadsByPreferredIds,
   resolveProjectStatusIndicator,
   resolveSidebarStageBadgeLabel,
   resolveThreadRowClassName,
@@ -547,6 +548,18 @@ describe("orderItemsByPreferredIds", () => {
   });
 });
 
+describe("orderThreadsByPreferredIds", () => {
+  it("keeps newly created threads above the remembered manual order", () => {
+    const ordered = orderThreadsByPreferredIds({
+      items: [{ id: "thread-new" }, { id: "thread-a" }, { id: "thread-b" }],
+      preferredIds: ["thread-b", "thread-a", "thread-stale"],
+      getId: (thread) => thread.id,
+    });
+
+    expect(ordered.map((thread) => thread.id)).toEqual(["thread-new", "thread-b", "thread-a"]);
+  });
+});
+
 describe("resolveAdjacentThreadId", () => {
   it("resolves adjacent thread ids in ordered sidebar traversal", () => {
     const threads = [
@@ -756,9 +769,11 @@ describe("searchSidebarThreadsByTitle", () => {
 });
 
 describe("sortThreadsForSidebar", () => {
-  const sortable = (input: { id: string; createdAt: string }) => ({
+  const sortable = (input: { id: string; createdAt: string; latestUserMessageAt?: string }) => ({
     id: input.id,
     createdAt: input.createdAt,
+    updatedAt: input.createdAt,
+    latestUserMessageAt: input.latestUserMessageAt ?? null,
   });
 
   it("orders by creation time, newest first, ignoring activity", () => {
@@ -778,6 +793,26 @@ describe("sortThreadsForSidebar", () => {
     ]);
 
     expect(sorted.map((thread) => thread.id)).toEqual(["a", "b"]);
+  });
+
+  it("moves the thread with the latest user activity to the top in recency mode", () => {
+    const sorted = sortThreadsForSidebar(
+      [
+        sortable({
+          id: "newly-created",
+          createdAt: "2026-03-09T12:00:00.000Z",
+          latestUserMessageAt: "2026-03-09T12:00:00.000Z",
+        }),
+        sortable({
+          id: "recently-used",
+          createdAt: "2026-03-09T08:00:00.000Z",
+          latestUserMessageAt: "2026-03-09T13:00:00.000Z",
+        }),
+      ],
+      "updated_at",
+    );
+
+    expect(sorted.map((thread) => thread.id)).toEqual(["recently-used", "newly-created"]);
   });
 });
 

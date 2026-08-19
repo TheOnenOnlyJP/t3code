@@ -80,6 +80,18 @@ The Tailscale support is an endpoint provider add-on. The core remote model stil
 
 For `https://app.t3.codes`, prefer an HTTPS Tailnet or other HTTPS endpoint. A plain `http://100.x.y.z:3773` endpoint can still work from a desktop client or another browser page served over HTTP, but it will not work from the hosted HTTPS app because of browser mixed-content rules.
 
+### Previewing Forwarded Dev Servers
+
+The desktop preview normally replaces `localhost` in agent and detected dev-server URLs with the
+connected environment's host. This lets a desktop client open a server directly on a remote LAN or
+Tailnet machine.
+
+If you forward remote dev-server ports to your desktop instead, open **Settings** →
+**Integrations** → **Browser**, set **Dev server URL routing** to **This computer**, and keep the
+same forwarded ports available locally. Agent preview tools and detected dev-server links will then
+use `localhost` on the computer running the desktop app. Manually entered browser URLs are always
+used as entered.
+
 ### Option 2: Headless Server (CLI)
 
 Use this when you want to run the server without a GUI, for example on a remote machine over SSH.

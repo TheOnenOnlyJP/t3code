@@ -780,10 +780,12 @@ function TimelineMinimap({
   return (
     <div
       className={cn(
-        "group/minimap pointer-events-none absolute inset-y-0 left-0 z-40 hidden w-18 [@media(pointer:fine)]:block",
+        "group/minimap pointer-events-none absolute inset-y-0 left-0 z-40 hidden w-18 transition-[opacity,visibility] duration-150 [@media(pointer:fine)]:block",
+        "group-data-[sidebar-auto-hide=open]/sidebar-wrapper:invisible group-data-[sidebar-auto-hide=open]/sidebar-wrapper:opacity-0 group-data-[sidebar-auto-hide=open]/sidebar-wrapper:delay-0 group-data-[sidebar-auto-hide=open]/sidebar-wrapper:duration-0",
+        "group-data-[sidebar-auto-hide=closed]/sidebar-wrapper:delay-[var(--sidebar-overlay-transition-duration)]",
         hasPersistentGutter
           ? "opacity-100"
-          : "opacity-0 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100",
+          : "opacity-0 hover:opacity-100 focus-within:opacity-100",
       )}
       data-testid="timeline-minimap"
       data-persistent-gutter={hasPersistentGutter ? "true" : "false"}

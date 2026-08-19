@@ -342,6 +342,28 @@ export function orderItemsByPreferredIds<TItem, TId>(input: {
   return [...ordered, ...remaining];
 }
 
+/**
+ * Applies a remembered manual thread order without burying threads created
+ * since the last drag. New rows retain their canonical newest-first order at
+ * the top; remembered rows follow in the user's chosen order.
+ */
+export function orderThreadsByPreferredIds<TItem, TId>(input: {
+  items: readonly TItem[];
+  preferredIds: readonly TId[];
+  getId: (item: TItem) => TId;
+}): TItem[] {
+  const { getId, items, preferredIds } = input;
+  if (preferredIds.length === 0) {
+    return [...items];
+  }
+  const preferredIdSet = new Set(preferredIds);
+  const newItems = items.filter((item) => !preferredIdSet.has(getId(item)));
+  const rememberedItems = orderItemsByPreferredIds(input).filter((item) =>
+    preferredIdSet.has(getId(item)),
+  );
+  return [...newItems, ...rememberedItems];
+}
+
 export function getVisibleSidebarThreadIds<TThreadId>(
   renderedProjects: readonly {
     shouldShowThreadPanel?: boolean;
@@ -531,13 +553,15 @@ export function firstValidTimestamp(
   return null;
 }
 
-// Sidebar sort: static creation order, newest thread on top. Activity NEVER
-// reorders the list — a row holds its position from open until settled, so
-// the screen only moves at lifecycle transitions. Status (including pending
-// approval) is carried by each card's edge strip, not by position.
-export function sortThreadsForSidebar<
-  T extends { readonly id: string; readonly createdAt: string },
->(threads: readonly T[]): T[] {
+// Automatic sidebar sort. Manual is applied separately from client-local UI
+// state; this helper owns only the two canonical orders.
+export function sortThreadsForSidebar<T extends { readonly id: string } & ThreadSortInput>(
+  threads: readonly T[],
+  sortOrder: Exclude<SidebarThreadSortOrder, "manual"> = "created_at",
+): T[] {
+  if (sortOrder === "updated_at") {
+    return sortThreads(threads, sortOrder);
+  }
   return [...threads].toSorted(
     (left, right) =>
       parseTimestampMs(right.createdAt) - parseTimestampMs(left.createdAt) ||

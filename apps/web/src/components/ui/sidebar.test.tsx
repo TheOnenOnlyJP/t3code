@@ -5,6 +5,8 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuSubButton,
+  Sidebar,
+  SidebarContent,
   SidebarProvider,
   SidebarTrigger,
 } from "./sidebar";
@@ -37,6 +39,47 @@ describe("sidebar interactive cursors", () => {
     );
 
     expect(html).toContain('data-sidebar-state="collapsed"');
+  });
+
+  it("keeps overlay sidebars out of the desktop layout gap", () => {
+    const html = renderToStaticMarkup(
+      <SidebarProvider>
+        <Sidebar desktopLayout="overlay" desktopOverlayTransitionDurationMs={275}>
+          <SidebarContent>Projects</SidebarContent>
+        </Sidebar>
+      </SidebarProvider>,
+    );
+
+    expect(html).toContain('data-desktop-layout="overlay"');
+    expect(html).toContain("group-data-[desktop-layout=overlay]:w-0");
+    expect(html).toContain("--sidebar-overlay-transition-duration:275ms");
+    expect(html).toContain("duration-[var(--sidebar-overlay-transition-duration)]");
+    expect(html).toContain("transition-transform");
+    expect(html).toContain("group-data-[collapsible=offcanvas]:-translate-x-full");
+    expect(html).toContain("transform-gpu");
+    expect(html).toContain("will-change-transform");
+    expect(html).toContain("pointer-events-auto");
+    expect(html).toContain("z-40");
+    expect(html).toContain("motion-reduce:duration-0");
+    expect(html).toContain("shadow-xl/10");
+    expect(html).toContain('data-slot="scroll-area-viewport"');
+    expect(html).toContain("overflow-auto");
+  });
+
+  it("leaves docked sidebar positioning and stacking unchanged", () => {
+    const html = renderToStaticMarkup(
+      <SidebarProvider>
+        <Sidebar>Projects</Sidebar>
+      </SidebarProvider>,
+    );
+
+    expect(html).toContain("z-10");
+    expect(html).toContain("transition-[left,right,width]");
+    expect(html).toContain(
+      "group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
+    );
+    expect(html).not.toContain("transform-gpu");
+    expect(html).not.toContain("z-40");
   });
 
   it("keeps the sidebar trigger interactive inside Electron drag regions", () => {

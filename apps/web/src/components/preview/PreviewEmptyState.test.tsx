@@ -45,6 +45,7 @@ function render(recentEntries: Array<{ url: string; lastVisitedAt: number; title
     <PreviewEmptyState
       threadRef={threadRef}
       environmentId={environmentId}
+      devServerRouting="environment-host"
       recentEntries={recentEntries}
       onRemoveRecent={() => undefined}
       onOpenUrl={() => undefined}
