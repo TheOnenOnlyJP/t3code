@@ -1,96 +1,159 @@
 /**
- * GrokSkills — skill discovery for the `$` picker via `grok inspect --json`.
+ * GrokSkills — advertise Grok CLI skills to the `$` / `/` pickers.
  *
- * Unlike Claude Code, the Grok CLI reports its full skill catalog itself:
- * `grok inspect --json` returns `skills[]` with `name`, `description`,
- * `source.type` (`user` / `project` / `bundled` / `plugin`), `source.path`
- * (the absolute `SKILL.md` path), and `userInvocable`. Asking the CLI beats
- * scanning the filesystem because the catalog honors Grok's own skill config
- * (ignore lists, disabled skills) and includes plugin skills, which live
- * three levels deep under `~/.grok/installed-plugins/` where a flat scan
- * cannot see them. This mirrors how the Codex app-server reports skills over
- * `skills/list`. Discovery is best-effort: an older CLI without `inspect`,
- * a timeout, or malformed output yields an empty list, never a degraded
- * provider snapshot.
+ * Claude scans the filesystem; Codex calls `skills/list`. Grok's own catalog
+ * already includes user, bundled, plugin, and vendor-compat skills plus
+ * collision-qualified names (`user:teach`). `grok inspect --json` is that
+ * catalog; the picker only needs the snapshot arrays filled.
+ *
+ * Discovery is best-effort: a failed or timed-out inspect never marks the
+ * provider unhealthy. Skills and slash commands stay empty instead.
  *
  * @module provider/Drivers/GrokSkills
  */
-import type { GrokSettings, ServerProviderSkill } from "@t3tools/contracts";
+import type {
+  GrokSettings,
+  ServerProviderSkill,
+  ServerProviderSlashCommand,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
-import { spawnAndCollect } from "../providerSnapshot.ts";
+import { nonEmptyTrimmed, spawnAndCollect } from "../providerSnapshot.ts";
 
-const GROK_SKILLS_PROBE_TIMEOUT_MS = 4_000;
+export const GROK_INSPECT_TIMEOUT_MS = 4_000;
 
-/**
- * Map `grok inspect --json` output onto provider skills. Entries without a
- * name or a filesystem path are skipped; `userInvocable: false` skills are
- * kept but disabled so pickers that filter on `enabled` hide them.
- */
-export function parseGrokInspectSkills(stdout: string): ReadonlyArray<ServerProviderSkill> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch {
-    return [];
+export type GrokInspectCatalog = {
+  readonly skills: ReadonlyArray<ServerProviderSkill>;
+  readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
+};
+
+export const EMPTY_GROK_INSPECT_CATALOG: GrokInspectCatalog = {
+  skills: [],
+  slashCommands: [],
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function grokSkillScope(source: Record<string, unknown>): string | undefined {
+  const type = nonEmptyTrimmed(typeof source.type === "string" ? source.type : undefined);
+  if (type === "user" || type === "personal") {
+    return "user";
   }
-  if (typeof parsed !== "object" || parsed === null) {
-    return [];
+  if (type === "project" || type === "local" || type === "repo") {
+    return "project";
   }
-  const entries = (parsed as Record<string, unknown>).skills;
-  if (!Array.isArray(entries)) {
-    return [];
+  if (type === "bundled" || type === "server") {
+    return "system";
+  }
+  if (type === "plugin") {
+    return (
+      nonEmptyTrimmed(typeof source.plugin_name === "string" ? source.plugin_name : undefined) ??
+      "plugin"
+    );
+  }
+  if (type === "config") {
+    return "user";
+  }
+  return type;
+}
+
+function parseGrokInspectSkill(value: unknown): ServerProviderSkill | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const source = isRecord(value.source) ? value.source : undefined;
+  const path = nonEmptyTrimmed(typeof source?.path === "string" ? source.path : undefined);
+  const reportedName = nonEmptyTrimmed(typeof value.name === "string" ? value.name : undefined);
+  const invocableAs = nonEmptyTrimmed(
+    typeof value.invocableAs === "string" ? value.invocableAs : undefined,
+  );
+  const name = invocableAs ?? reportedName;
+  if (!path || !name) {
+    return undefined;
+  }
+
+  const description = nonEmptyTrimmed(
+    typeof value.description === "string" ? value.description : undefined,
+  );
+  const scope = source ? grokSkillScope(source) : undefined;
+  const enabled = value.userInvocable !== false;
+  const skill: ServerProviderSkill = {
+    name,
+    path,
+    enabled,
+    ...(description ? { description } : {}),
+    ...(scope ? { scope } : {}),
+    ...(reportedName && reportedName !== name ? { displayName: reportedName } : {}),
+  };
+  return skill;
+}
+
+export function parseGrokInspectCatalog(value: unknown): GrokInspectCatalog {
+  if (!isRecord(value) || !Array.isArray(value.skills)) {
+    return EMPTY_GROK_INSPECT_CATALOG;
   }
 
   const skillsByName = new Map<string, ServerProviderSkill>();
-  for (const entry of entries) {
-    if (typeof entry !== "object" || entry === null) {
+  for (const entry of value.skills) {
+    const skill = parseGrokInspectSkill(entry);
+    if (!skill) {
       continue;
     }
-    const record = entry as Record<string, unknown>;
-    const name = typeof record.name === "string" ? record.name.trim() : "";
-    const source =
-      typeof record.source === "object" && record.source !== null
-        ? (record.source as Record<string, unknown>)
-        : undefined;
-    const path = typeof source?.path === "string" ? source.path.trim() : "";
-    if (!name || !path) {
+    skillsByName.set(skill.name.toLowerCase(), skill);
+  }
+
+  const skills = [...skillsByName.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  const slashCommands: ServerProviderSlashCommand[] = [];
+  const slashCommandNames = new Set<string>();
+  for (const skill of skills) {
+    if (!skill.enabled) {
       continue;
     }
-    const scope = typeof source?.type === "string" ? source.type.trim() : "";
-    const description = typeof record.description === "string" ? record.description.trim() : "";
-    skillsByName.set(name, {
-      name,
-      path,
-      enabled: record.userInvocable !== false,
-      ...(scope ? { scope } : {}),
-      ...(description ? { description } : {}),
+    const key = skill.name.toLowerCase();
+    if (slashCommandNames.has(key)) {
+      continue;
+    }
+    slashCommandNames.add(key);
+    slashCommands.push({
+      name: skill.name,
+      ...(skill.description ? { description: skill.description } : {}),
     });
   }
 
-  return [...skillsByName.values()].sort((left, right) => left.name.localeCompare(right.name));
+  return { skills, slashCommands };
 }
 
-/**
- * Run `grok inspect --json` and map the reported catalog onto provider
- * skills. Never fails: any spawn error, non-zero exit, or timeout resolves
- * to an empty list.
- */
-export const discoverGrokSkills = Effect.fn("discoverGrokSkills")(function* (
-  grokSettings: Pick<GrokSettings, "binaryPath">,
-  environment: NodeJS.ProcessEnv = process.env,
+export function parseGrokInspectCatalogJson(stdout: string): GrokInspectCatalog {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    return EMPTY_GROK_INSPECT_CATALOG;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return EMPTY_GROK_INSPECT_CATALOG;
+  }
+  return parseGrokInspectCatalog(parsed);
+}
+
+const runGrokInspectCommand = (
+  grokSettings: GrokSettings,
+  environment: NodeJS.ProcessEnv,
   cwd?: string,
-): Effect.fn.Return<
-  ReadonlyArray<ServerProviderSkill>,
-  never,
-  ChildProcessSpawner.ChildProcessSpawner
-> {
-  const command = grokSettings.binaryPath || "grok";
-  const inspectResult = yield* Effect.gen(function* () {
+) =>
+  Effect.gen(function* () {
+    const command = grokSettings.binaryPath || "grok";
     const spawnCommand = yield* resolveSpawnCommand(command, ["inspect", "--json"], {
       env: environment,
     });
@@ -102,18 +165,43 @@ export const discoverGrokSkills = Effect.fn("discoverGrokSkills")(function* (
         shell: spawnCommand.shell,
       }),
     );
-  }).pipe(Effect.timeoutOption(GROK_SKILLS_PROBE_TIMEOUT_MS), Effect.result);
+  });
 
-  if (Result.isFailure(inspectResult) || Option.isNone(inspectResult.success)) {
-    yield* Effect.logDebug("Grok skill discovery failed; continuing without skills.");
-    return [];
+/**
+ * Load Grok's advertised skill catalog. Never fails: inspect errors, timeouts,
+ * and malformed JSON all become an empty catalog.
+ */
+export const discoverGrokInspectCatalog = Effect.fn("discoverGrokInspectCatalog")(function* (
+  grokSettings: GrokSettings,
+  environment: NodeJS.ProcessEnv = process.env,
+  cwd?: string,
+): Effect.fn.Return<GrokInspectCatalog, never, ChildProcessSpawner.ChildProcessSpawner> {
+  const inspectResult = yield* runGrokInspectCommand(grokSettings, environment, cwd).pipe(
+    Effect.timeoutOption(GROK_INSPECT_TIMEOUT_MS),
+    Effect.result,
+  );
+
+  if (Result.isFailure(inspectResult)) {
+    yield* Effect.logWarning("Grok skill inspect failed.", {
+      errorTag: inspectResult.failure._tag,
+    });
+    return EMPTY_GROK_INSPECT_CATALOG;
   }
+
+  if (Option.isNone(inspectResult.success)) {
+    yield* Effect.logWarning(`Grok skill inspect timed out after ${GROK_INSPECT_TIMEOUT_MS}ms.`);
+    return EMPTY_GROK_INSPECT_CATALOG;
+  }
+
   const output = inspectResult.success.value;
   if (output.code !== 0) {
-    yield* Effect.logDebug("Grok skill discovery exited non-zero; continuing without skills.", {
+    yield* Effect.logWarning("Grok skill inspect exited with a non-zero status.", {
       exitCode: output.code,
+      stdoutLength: output.stdout.length,
+      stderrLength: output.stderr.length,
     });
-    return [];
+    return EMPTY_GROK_INSPECT_CATALOG;
   }
-  return parseGrokInspectSkills(output.stdout);
+
+  return parseGrokInspectCatalogJson(output.stdout);
 });

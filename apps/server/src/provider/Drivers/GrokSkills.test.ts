@@ -1,135 +1,152 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Sink from "effect/Sink";
-import * as Stream from "effect/Stream";
-import { ChildProcessSpawner } from "effect/unstable/process";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
+import { GrokSettings } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 
-import { discoverGrokSkills, parseGrokInspectSkills } from "./GrokSkills.ts";
+import {
+  discoverGrokInspectCatalog,
+  parseGrokInspectCatalog,
+  parseGrokInspectCatalogJson,
+} from "./GrokSkills.ts";
 
-const inspectPayload = (skills: ReadonlyArray<unknown>) => JSON.stringify({ skills });
+const decodeGrokSettings = Schema.decodeSync(GrokSettings);
+const encodeUnknownJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-describe("parseGrokInspectSkills", () => {
-  it("maps inspect entries onto provider skills, sorted by name", () => {
-    const skills = parseGrokInspectSkills(
-      inspectPayload([
-        {
-          name: "writing-docs",
-          description: "Write user docs.",
-          source: { type: "user", path: "/home/dev/.grok/skills/writing-docs/SKILL.md" },
-          userInvocable: true,
-        },
-        {
-          name: "deploy",
-          description: "Deploy the app.",
-          source: {
-            type: "plugin",
-            path: "/home/dev/.grok/installed-plugins/pkg/plug/skills/deploy/SKILL.md",
-          },
-          userInvocable: true,
-        },
-      ]),
-    );
-
-    expect(skills).toEqual([
-      {
-        name: "deploy",
-        description: "Deploy the app.",
-        path: "/home/dev/.grok/installed-plugins/pkg/plug/skills/deploy/SKILL.md",
-        scope: "plugin",
-        enabled: true,
+const INSPECT_FIXTURE = {
+  skills: [
+    {
+      name: "rpi",
+      description: "Research, plan, implement.",
+      source: { type: "user", path: "/home/me/.claude/skills/rpi/SKILL.md" },
+      userInvocable: true,
+    },
+    {
+      name: "teach",
+      description: "Explain the work.",
+      source: {
+        type: "plugin",
+        plugin_name: "pstack",
+        path: "/home/me/.grok/plugins/pstack/skills/teach/SKILL.md",
       },
-      {
-        name: "writing-docs",
-        description: "Write user docs.",
-        path: "/home/dev/.grok/skills/writing-docs/SKILL.md",
-        scope: "user",
-        enabled: true,
-      },
-    ]);
-  });
+      userInvocable: true,
+      collidesWith: "teach",
+      invocableAs: "pstack:teach",
+    },
+    {
+      name: "pdf",
+      description: "Read and write PDFs.",
+      source: { type: "bundled", path: "/home/me/.grok/bundled/skills/pdf/SKILL.md" },
+      userInvocable: false,
+    },
+    {
+      name: "broken",
+      description: "Missing a path.",
+      source: { type: "user" },
+      userInvocable: true,
+    },
+  ],
+};
 
-  it("disables skills the CLI marks as not user-invocable", () => {
-    const skills = parseGrokInspectSkills(
-      inspectPayload([
-        {
-          name: "internal-helper",
-          source: { type: "bundled", path: "/opt/grok/bundled/skills/internal-helper/SKILL.md" },
-          userInvocable: false,
-        },
-      ]),
-    );
+describe("parseGrokInspectCatalog", () => {
+  it("maps Grok inspect skills into picker rows and slash commands", () => {
+    const catalog = parseGrokInspectCatalog(INSPECT_FIXTURE);
 
-    expect(skills).toEqual([
+    expect(catalog.skills).toEqual([
       {
-        name: "internal-helper",
-        path: "/opt/grok/bundled/skills/internal-helper/SKILL.md",
-        scope: "bundled",
+        name: "pdf",
+        path: "/home/me/.grok/bundled/skills/pdf/SKILL.md",
         enabled: false,
+        description: "Read and write PDFs.",
+        scope: "system",
       },
+      {
+        name: "pstack:teach",
+        path: "/home/me/.grok/plugins/pstack/skills/teach/SKILL.md",
+        enabled: true,
+        description: "Explain the work.",
+        scope: "pstack",
+        displayName: "teach",
+      },
+      {
+        name: "rpi",
+        path: "/home/me/.claude/skills/rpi/SKILL.md",
+        enabled: true,
+        description: "Research, plan, implement.",
+        scope: "user",
+      },
+    ]);
+    expect(catalog.slashCommands).toEqual([
+      { name: "pstack:teach", description: "Explain the work." },
+      { name: "rpi", description: "Research, plan, implement." },
     ]);
   });
 
-  it("skips entries without a name or a filesystem path", () => {
-    const skills = parseGrokInspectSkills(
-      inspectPayload([
-        { name: "  ", source: { type: "user", path: "/tmp/skills/a/SKILL.md" } },
-        { name: "no-path", source: { type: "user" } },
-        { name: "no-source" },
-        "not-an-object",
-        { name: "kept", source: { type: "project", path: "/repo/.grok/skills/kept/SKILL.md" } },
-      ]),
-    );
-
-    expect(skills.map((skill) => skill.name)).toEqual(["kept"]);
-  });
-
-  it("returns an empty list for malformed or unexpected output", () => {
-    expect(parseGrokInspectSkills("not json")).toEqual([]);
-    expect(parseGrokInspectSkills("null")).toEqual([]);
-    expect(parseGrokInspectSkills(JSON.stringify({ skills: "nope" }))).toEqual([]);
-    expect(parseGrokInspectSkills(JSON.stringify({}))).toEqual([]);
+  it("returns an empty catalog for malformed inspect output", () => {
+    expect(parseGrokInspectCatalog(null)).toEqual({ skills: [], slashCommands: [] });
+    expect(parseGrokInspectCatalog({ skills: "nope" })).toEqual({
+      skills: [],
+      slashCommands: [],
+    });
+    expect(parseGrokInspectCatalogJson("not-json")).toEqual({
+      skills: [],
+      slashCommands: [],
+    });
+    expect(parseGrokInspectCatalogJson("")).toEqual({ skills: [], slashCommands: [] });
+    expect(
+      parseGrokInspectCatalogJson(encodeUnknownJson(INSPECT_FIXTURE)).skills.map((s) => s.name),
+    ).toEqual(["pdf", "pstack:teach", "rpi"]);
   });
 });
 
-describe("discoverGrokSkills", () => {
-  it.effect("spawns the inspect probe in the configured cwd", () => {
-    const spawnCwds: Array<string | undefined> = [];
-    const spawner = ChildProcessSpawner.make((command) => {
-      spawnCwds.push(command._tag === "StandardCommand" ? command.options.cwd : undefined);
-      return Effect.succeed(
-        ChildProcessSpawner.makeHandle({
-          pid: ChildProcessSpawner.ProcessId(1),
-          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
-          isRunning: Effect.succeed(false),
-          kill: () => Effect.void,
-          unref: Effect.succeed(Effect.void),
-          stdin: Sink.drain,
-          stdout: Stream.encodeText(
-            Stream.make(
-              inspectPayload([
-                {
-                  name: "kept",
-                  source: { type: "project", path: "/workspaces/demo/.grok/skills/kept/SKILL.md" },
-                },
-              ]),
-            ),
-          ),
-          stderr: Stream.empty,
-          all: Stream.empty,
-          getInputFd: () => Sink.drain,
-          getOutputFd: () => Stream.empty,
-        }),
+it.layer(NodeServices.layer)("discoverGrokInspectCatalog", (it) => {
+  it.effect("reads skills from grok inspect --json", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-grok-inspect-" });
+      const grokPath = path.join(dir, "grok");
+      const fixturePath = path.join(dir, "inspect.json");
+      yield* fs.writeFileString(fixturePath, encodeUnknownJson(INSPECT_FIXTURE));
+      yield* fs.writeFileString(
+        grokPath,
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "inspect" ] && [ "$2" = "--json" ]; then',
+          `  cat "${fixturePath}"`,
+          "  exit 0",
+          "fi",
+          "exit 1",
+          "",
+        ].join("\n"),
       );
-    });
+      yield* fs.chmod(grokPath, 0o755);
 
-    return Effect.gen(function* () {
-      const skills = yield* discoverGrokSkills({ binaryPath: "grok" }, {}, "/workspaces/demo").pipe(
-        Effect.provide(Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner)),
+      const catalog = yield* discoverGrokInspectCatalog(
+        decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
       );
 
-      expect(spawnCwds).toEqual(["/workspaces/demo"]);
-      expect(skills.map((skill) => skill.name)).toEqual(["kept"]);
-    });
-  });
+      expect(catalog.skills.map((skill) => skill.name)).toEqual(["pdf", "pstack:teach", "rpi"]);
+      expect(catalog.slashCommands.map((command) => command.name)).toEqual(["pstack:teach", "rpi"]);
+    }),
+  );
+
+  it.effect("returns an empty catalog when inspect fails", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-grok-inspect-fail-" });
+      const grokPath = path.join(dir, "grok");
+      yield* fs.writeFileString(grokPath, ["#!/bin/sh", "exit 2", ""].join("\n"));
+      yield* fs.chmod(grokPath, 0o755);
+
+      const catalog = yield* discoverGrokInspectCatalog(
+        decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
+      );
+
+      expect(catalog).toEqual({ skills: [], slashCommands: [] });
+    }),
+  );
 });
