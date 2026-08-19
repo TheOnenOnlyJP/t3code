@@ -30,6 +30,7 @@ import {
   type ProviderMaintenanceCapabilities,
 } from "../providerMaintenance.ts";
 import { makeGrokAcpRuntime, resolveGrokAcpBaseModelId } from "../acp/GrokAcpSupport.ts";
+import { discoverGrokInspectCatalog } from "../Drivers/GrokSkills.ts";
 
 const GROK_PRESENTATION = {
   displayName: "Grok",
@@ -251,9 +252,15 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     });
   }
 
-  const discoveryExit = yield* discoverGrokModelsViaAcp(grokSettings, environment).pipe(
-    Effect.timeoutOption(GROK_ACP_MODEL_DISCOVERY_TIMEOUT_MS),
-    Effect.exit,
+  const [discoveryExit, catalog] = yield* Effect.all(
+    [
+      discoverGrokModelsViaAcp(grokSettings, environment).pipe(
+        Effect.timeoutOption(GROK_ACP_MODEL_DISCOVERY_TIMEOUT_MS),
+        Effect.exit,
+      ),
+      discoverGrokInspectCatalog(grokSettings, environment),
+    ],
+    { concurrency: "unbounded" },
   );
   if (Exit.isFailure(discoveryExit)) {
     yield* Effect.logWarning("Grok ACP model discovery failed", {
@@ -264,6 +271,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
       enabled: grokSettings.enabled,
       checkedAt,
       models: fallbackModels,
+      ...catalog,
       probe: {
         installed: true,
         version,
@@ -282,6 +290,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
       enabled: grokSettings.enabled,
       checkedAt,
       models: fallbackModels,
+      ...catalog,
       probe: {
         installed: true,
         version,
@@ -302,6 +311,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     enabled: grokSettings.enabled,
     checkedAt,
     models,
+    ...catalog,
     probe: {
       installed: true,
       version,
