@@ -115,6 +115,70 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
       expect(snapshot.installed).toBe(true);
       expect(snapshot.models.map((model) => model.slug)).toEqual(["grok-build"]);
       expect(snapshot.message).toContain("ACP startup failed");
+      expect(snapshot.skills).toEqual([]);
+      expect(snapshot.slashCommands).toEqual([]);
+    }),
+  );
+
+  it.effect("advertises inspect skills even when ACP model discovery fails", () =>
+    Effect.gen(function* () {
+      const snapshot = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-grok-skills-" });
+          const grokPath = path.join(dir, "grok");
+          const fixturePath = path.join(dir, "inspect.json");
+          yield* fs.writeFileString(
+            fixturePath,
+            JSON.stringify({
+              skills: [
+                {
+                  name: "rpi",
+                  description: "Research, plan, implement.",
+                  source: { type: "user", path: "/tmp/rpi/SKILL.md" },
+                  userInvocable: true,
+                },
+              ],
+            }),
+          );
+          yield* fs.writeFileString(
+            grokPath,
+            [
+              "#!/bin/sh",
+              'if [ "$1" = "--version" ]; then',
+              '  printf "grok-cli 0.0.99\\n"',
+              "  exit 0",
+              "fi",
+              'if [ "$1" = "inspect" ] && [ "$2" = "--json" ]; then',
+              `  cat "${fixturePath}"`,
+              "  exit 0",
+              "fi",
+              "exit 1",
+              "",
+            ].join("\n"),
+          );
+          yield* fs.chmod(grokPath, 0o755);
+
+          return yield* checkGrokProviderStatus(
+            decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
+          );
+        }),
+      );
+
+      expect(snapshot.status).toBe("error");
+      expect(snapshot.skills).toEqual([
+        {
+          name: "rpi",
+          path: "/tmp/rpi/SKILL.md",
+          enabled: true,
+          description: "Research, plan, implement.",
+          scope: "user",
+        },
+      ]);
+      expect(snapshot.slashCommands).toEqual([
+        { name: "rpi", description: "Research, plan, implement." },
+      ]);
     }),
   );
 });
