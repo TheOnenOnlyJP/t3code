@@ -8,6 +8,7 @@
  */
 import {
   DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+  DEFAULT_BROWSER_DEV_SERVER_ROUTING,
   DEFAULT_BROWSER_VIEWPORT,
   DEFAULT_PREVIEW_APPEARANCE,
   DEFAULT_UNIFIED_SETTINGS,
@@ -17,6 +18,7 @@ import {
   PREVIEW_VIEWPORT_MAX_DIMENSION,
   PREVIEW_VIEWPORT_MIN_DIMENSION,
   PREVIEW_ZOOM_LEVELS,
+  type BrowserDevServerRouting,
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
 } from "@t3tools/contracts";
@@ -70,6 +72,11 @@ const APPEARANCE_LABELS: Readonly<Record<PreviewAppearancePreference, string>> =
   system: "System",
   light: "Light",
   dark: "Dark",
+};
+
+const DEV_SERVER_ROUTING_LABELS: Readonly<Record<BrowserDevServerRouting, string>> = {
+  "environment-host": "Environment host",
+  "client-localhost": "This computer",
 };
 
 const zoomLabel = (zoomFactor: number) => `${Math.round(zoomFactor * 100)}%`;
@@ -355,6 +362,50 @@ function BrowserAppearanceSetting({ disabled }: { readonly disabled: boolean }) 
   );
 }
 
+function BrowserDevServerRoutingSetting({ disabled }: { readonly disabled: boolean }) {
+  const routing = useClientSettings((settings) => settings.browserDevServerRouting);
+  const updateSettings = useUpdatePrimarySettings();
+
+  return (
+    <SettingsRow
+      {...searchableSetting("browser-dev-server-routing")}
+      description="Choose whether agent and detected dev-server URLs use the connected environment host or localhost on this computer."
+      resetAction={
+        !disabled && routing !== DEFAULT_BROWSER_DEV_SERVER_ROUTING ? (
+          <SettingResetButton
+            label="dev server URL routing"
+            onClick={() =>
+              updateSettings({ browserDevServerRouting: DEFAULT_BROWSER_DEV_SERVER_ROUTING })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          disabled={disabled}
+          value={routing}
+          onValueChange={(value) => {
+            if (value === "environment-host" || value === "client-localhost") {
+              updateSettings({ browserDevServerRouting: value });
+            }
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-40" aria-label="Dev server URL routing">
+            <SelectValue>{DEV_SERVER_ROUTING_LABELS[routing]}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {Object.entries(DEV_SERVER_ROUTING_LABELS).map(([value, label]) => (
+              <SelectItem hideIndicator key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      }
+    />
+  );
+}
+
 function AgentBrowserAccessSetting() {
   const settings = usePrimarySettings();
   const updateSettings = useUpdatePrimarySettings();
@@ -458,6 +509,7 @@ export function IntegrationsSettingsPanel() {
   const previewDefaultsDisabled = !isElectron;
   const previewDefaults = (
     <>
+      <BrowserDevServerRoutingSetting disabled={previewDefaultsDisabled} />
       <BrowserViewportSetting disabled={previewDefaultsDisabled} />
       <BrowserZoomSetting disabled={previewDefaultsDisabled} />
       <BrowserAppearanceSetting disabled={previewDefaultsDisabled} />

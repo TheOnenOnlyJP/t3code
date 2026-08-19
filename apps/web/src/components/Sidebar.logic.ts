@@ -350,6 +350,28 @@ export function orderItemsByPreferredIds<TItem, TId>(input: {
   return [...ordered, ...remaining];
 }
 
+/**
+ * Applies a remembered manual thread order without burying threads created
+ * since the last drag. New rows retain their canonical newest-first order at
+ * the top; remembered rows follow in the user's chosen order.
+ */
+export function orderThreadsByPreferredIds<TItem, TId>(input: {
+  items: readonly TItem[];
+  preferredIds: readonly TId[];
+  getId: (item: TItem) => TId;
+}): TItem[] {
+  const { getId, items, preferredIds } = input;
+  if (preferredIds.length === 0) {
+    return [...items];
+  }
+  const preferredIdSet = new Set(preferredIds);
+  const newItems = items.filter((item) => !preferredIdSet.has(getId(item)));
+  const rememberedItems = orderItemsByPreferredIds(input).filter((item) =>
+    preferredIdSet.has(getId(item)),
+  );
+  return [...newItems, ...rememberedItems];
+}
+
 export function getVisibleSidebarThreadIds<TThreadId>(
   renderedProjects: readonly {
     shouldShowThreadPanel?: boolean;
@@ -539,20 +561,19 @@ export function firstValidTimestamp(
   return null;
 }
 
-// Sidebar sort: static order, newest anchor on top. Activity NEVER reorders
-// the list — a row holds its position between lifecycle transitions, so the
-// screen only moves when a thread enters or leaves the active list. The
-// anchor is creation time until an un-settle re-anchors it (see
-// activeThreadAnchorTimestampMs), so an un-settled thread surfaces at the
-// top instead of sinking back to its creation-order slot. Status (including
-// pending approval) is carried by each card's edge strip, not by position.
+// Automatic sidebar sort. Manual is applied separately from client-local UI
+// state; this helper owns only the two canonical orders. Creation order uses
+// the lifecycle anchor so a thread that re-enters the active list surfaces at
+// the top without ordinary activity continuously reordering the list.
 export function sortThreadsForSidebar<
   T extends {
     readonly id: string;
-    readonly createdAt: string;
     readonly unsettledAt?: string | null | undefined;
-  },
->(threads: readonly T[]): T[] {
+  } & ThreadSortInput,
+>(threads: readonly T[], sortOrder: Exclude<SidebarThreadSortOrder, "manual"> = "created_at"): T[] {
+  if (sortOrder === "updated_at") {
+    return sortThreads(threads, sortOrder);
+  }
   return [...threads].toSorted(
     (left, right) =>
       activeThreadAnchorTimestampMs(right) - activeThreadAnchorTimestampMs(left) ||

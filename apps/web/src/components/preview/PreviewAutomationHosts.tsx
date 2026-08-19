@@ -359,11 +359,16 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
             return await currentStatus(threadRef, tabId);
           case "open": {
             const input = request.input as PreviewAutomationOpenInput;
+            const browserDefaults = await resolveBrowserDefaults();
             const resolvedInputUrl = input.url
-              ? resolveBrowserNavigationTarget(environmentId, {
-                  kind: "url",
-                  url: input.url,
-                }).resolvedUrl
+              ? resolveBrowserNavigationTarget(
+                  environmentId,
+                  {
+                    kind: "url",
+                    url: input.url,
+                  },
+                  browserDefaults.devServerRouting,
+                ).resolvedUrl
               : undefined;
             let activeTabId = resolvePreviewAutomationOpenTab(
               state,
@@ -383,7 +388,7 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
                   ...(resolvedInputUrl ? { url: resolvedInputUrl } : {}),
                   // An agent that didn't state a size gets the user's
                   // configured default, same as a hand-opened tab.
-                  viewport: browserDefaultOpenViewport(await resolveBrowserDefaults()),
+                  viewport: browserDefaultOpenViewport(browserDefaults),
                 },
               });
               if (result._tag === "Failure") {
@@ -434,7 +439,7 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
             }
             const shouldPresentPreview = shouldOpenPreviewMiniPlayer(
               input,
-              (await resolveBrowserDefaults()).autoShowFloatingPreview,
+              browserDefaults.autoShowFloatingPreview,
             );
             if (shouldPresentPreview) {
               usePreviewMiniPlayerStore.getState().open(threadRef, activeTabId);
@@ -474,12 +479,14 @@ function PreviewAutomationHost(props: { readonly environmentId: EnvironmentId })
           case "navigate": {
             const ready = await requireReadyTab();
             const input = request.input as PreviewAutomationNavigateInput;
+            const browserDefaults = await resolveBrowserDefaults();
             const resolution = resolveBrowserNavigationTarget(
               environmentId,
               input.target ?? {
                 kind: "url",
                 url: input.url!,
               },
+              browserDefaults.devServerRouting,
             );
             await ready.bridge.navigate(ready.runtimeTabId, resolution.resolvedUrl);
             await waitForNavigationReadiness(

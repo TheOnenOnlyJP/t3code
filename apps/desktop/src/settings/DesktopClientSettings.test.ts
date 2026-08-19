@@ -17,6 +17,7 @@ const clientSettings: ClientSettings = {
   browserDefaultViewport: { _tag: "preset", width: 1024, height: 600, presetId: "nest-hub" },
   browserDefaultZoomFactor: 1.25,
   browserDefaultAppearance: "dark",
+  browserDevServerRouting: "client-localhost",
   browserAutoShowFloatingPreview: false,
   confirmQuit: true,
   confirmThreadArchive: true,
@@ -40,6 +41,8 @@ const clientSettings: ClientSettings = {
   providerModelPreferences: {},
   sidebarAutoSettleAfterDays: 3,
   sidebarAutoSettleOnMerge: true,
+  sidebarAutoHideTransitionDurationMs: 275,
+  sidebarVisibilityMode: "auto-hide",
   sidebarProjectGroupingMode: "repository_path",
   sidebarProjectGroupingOverrides: {
     "environment-1:/tmp/project-a": "separate",

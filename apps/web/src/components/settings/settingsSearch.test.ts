@@ -46,6 +46,13 @@ describe("searchSettings", () => {
   it("matches normalized title substrings", () => {
     expect(searchSettings("  WORD   WRAP  ", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
     expect(searchSettings("glass").map((item) => item.id)).toEqual(["setting-glass-opacity"]);
+    expect(searchSettings("server url routing").map((item) => item.id)).toEqual([
+      "browser-dev-server-routing",
+    ]);
+    expect(searchSettings("sidebar mode").map((item) => item.id)).toEqual(["sidebar-mode"]);
+    expect(searchSettings("sidebar slide speed").map((item) => item.id)).toEqual([
+      "sidebar-slide-speed",
+    ]);
     expect(searchSettings("xyzzy")).toEqual([]);
   });
 
@@ -88,6 +95,14 @@ describe("searchSettings", () => {
       id: "environment-identification",
       to: "/settings/appearance",
       targetId: "appearance",
+    });
+    expect(searchSettings("sidebar mode")[0]).toMatchObject({
+      id: "sidebar-mode",
+      to: "/settings/appearance",
+    });
+    expect(searchSettings("sidebar slide speed")[0]).toMatchObject({
+      id: "sidebar-slide-speed",
+      to: "/settings/appearance",
     });
   });
 });

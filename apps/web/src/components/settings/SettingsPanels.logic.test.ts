@@ -268,9 +268,16 @@ describe("getChangedBrowserSettingLabels", () => {
         browserDefaultViewport: { _tag: "freeform", width: 900, height: 600 },
         browserDefaultZoomFactor: 1.5,
         browserDefaultAppearance: "dark",
+        browserDevServerRouting: "client-localhost",
         browserAutoShowFloatingPreview: !DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
       }),
-    ).toEqual(["Browser viewport", "Browser zoom", "Browser appearance", "Floating preview"]);
+    ).toEqual([
+      "Browser viewport",
+      "Browser zoom",
+      "Browser appearance",
+      "Dev server URL routing",
+      "Floating preview",
+    ]);
   });
 });
 

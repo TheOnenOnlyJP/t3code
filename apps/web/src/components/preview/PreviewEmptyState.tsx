@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import type { BrowserDevServerRouting, EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { Globe, History, RadioTower } from "lucide-react";
 
 import type { BrowserHistoryEntry } from "~/browserHistoryStore";
@@ -11,6 +11,7 @@ import { useDiscoveredLocalServers } from "./useDiscoveredLocalServers";
 interface Props {
   threadRef: ScopedThreadRef;
   environmentId: EnvironmentId;
+  devServerRouting: BrowserDevServerRouting;
   configuredUrls?: ReadonlyArray<string> | undefined;
   recentEntries: ReadonlyArray<BrowserHistoryEntry>;
   onRemoveRecent: (url: string) => void;
@@ -20,6 +21,7 @@ interface Props {
 export function PreviewEmptyState({
   threadRef,
   environmentId,
+  devServerRouting,
   configuredUrls,
   recentEntries,
   onRemoveRecent,
@@ -27,6 +29,7 @@ export function PreviewEmptyState({
 }: Props) {
   const servers = useDiscoveredLocalServers({
     environmentId,
+    devServerRouting,
     configuredUrls,
   });
   const recents = recentEntries.filter((entry) => URL.canParse(entry.url)).slice(0, 8);

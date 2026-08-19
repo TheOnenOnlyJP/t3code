@@ -1,4 +1,5 @@
 import type {
+  BrowserDevServerRouting,
   BrowserNavigationTarget,
   EnvironmentId,
   PreviewUrlResolution,
@@ -6,6 +7,8 @@ import type {
 import { isLoopbackHost, normalizePreviewUrl } from "@t3tools/shared/preview";
 
 import { readPreparedConnection } from "~/state/session";
+
+const CLIENT_LOCALHOST_URL = new URL("http://localhost");
 
 export const normalizeHostname = (host: string): string =>
   host
@@ -205,6 +208,7 @@ const resolveEnvironmentPortTarget = (
 export function resolveBrowserNavigationTarget(
   environmentId: EnvironmentId,
   target: BrowserNavigationTarget,
+  routing: BrowserDevServerRouting = "environment-host",
 ): PreviewUrlResolution {
   if (target.kind === "url") {
     let parsed: URL | null = null;
@@ -215,7 +219,8 @@ export function resolveBrowserNavigationTarget(
       // reports malformed URL errors through its normal navigation path.
     }
     if (parsed && isLoopbackHost(parsed.hostname)) {
-      const environmentUrl = readEnvironmentUrl(environmentId);
+      const environmentUrl =
+        routing === "client-localhost" ? CLIENT_LOCALHOST_URL : readEnvironmentUrl(environmentId);
       if (parsed.hostname === "0.0.0.0" || !isLocalLoopbackHost(environmentUrl.hostname)) {
         return resolveEnvironmentPortTarget(
           environmentId,
@@ -238,16 +243,28 @@ export function resolveBrowserNavigationTarget(
       environmentId,
     };
   }
-  return resolveEnvironmentPortTarget(environmentId, target, readEnvironmentUrl(environmentId));
+  return resolveEnvironmentPortTarget(
+    environmentId,
+    target,
+    routing === "client-localhost" ? CLIENT_LOCALHOST_URL : readEnvironmentUrl(environmentId),
+  );
 }
 
-export function resolveDiscoveredServerUrl(environmentId: EnvironmentId, rawUrl: string): string {
+export function resolveDiscoveredServerUrl(
+  environmentId: EnvironmentId,
+  rawUrl: string,
+  routing: BrowserDevServerRouting = "environment-host",
+): string {
   try {
     const normalizedUrl = normalizePreviewUrl(rawUrl);
-    return resolveBrowserNavigationTarget(environmentId, {
-      kind: "url",
-      url: normalizedUrl,
-    }).resolvedUrl;
+    return resolveBrowserNavigationTarget(
+      environmentId,
+      {
+        kind: "url",
+        url: normalizedUrl,
+      },
+      routing,
+    ).resolvedUrl;
   } catch {
     return rawUrl;
   }

@@ -183,6 +183,8 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  desktopLayout = "docked",
+  desktopOverlayTransitionDurationMs = 150,
   resizable = false,
   className,
   children,
@@ -191,6 +193,8 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  desktopLayout?: "docked" | "overlay";
+  desktopOverlayTransitionDurationMs?: number;
   resizable?: boolean | SidebarResizableOptions;
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
@@ -212,6 +216,13 @@ function Sidebar({
     () => ({ side, resizable: resolvedResizable }),
     [resolvedResizable, side],
   );
+  const sidebarContainerStyle =
+    desktopLayout === "overlay"
+      ? {
+          ...props.style,
+          "--sidebar-overlay-transition-duration": `${desktopOverlayTransitionDurationMs}ms`,
+        }
+      : props.style;
 
   if (collapsible === "none") {
     return (
@@ -273,6 +284,7 @@ function Sidebar({
       <div
         className="group peer hidden text-sidebar-foreground md:block"
         data-collapsible={state === "collapsed" ? collapsible : ""}
+        data-desktop-layout={desktopLayout}
         data-side={side}
         data-slot="sidebar"
         data-state={state}
@@ -283,6 +295,7 @@ function Sidebar({
           className={cn(
             "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
             "group-data-[collapsible=offcanvas]:w-0",
+            "group-data-[desktop-layout=overlay]:w-0",
             "group-data-[side=right]:rotate-180",
             variant === "floating" || variant === "inset"
               ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
@@ -292,10 +305,17 @@ function Sidebar({
         />
         <div
           className={cn(
-            "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
-            side === "left"
-              ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-              : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+            "fixed inset-y-0 hidden h-svh w-(--sidebar-width) md:flex",
+            desktopLayout === "overlay"
+              ? "pointer-events-auto z-40 transform-gpu transition-transform duration-[var(--sidebar-overlay-transition-duration)] ease-[cubic-bezier(0.2,0,0,1)] shadow-xl/10 will-change-transform motion-reduce:duration-0"
+              : "z-10 transition-[left,right,width] duration-200 ease-linear",
+            desktopLayout === "overlay"
+              ? side === "left"
+                ? "left-0 group-data-[collapsible=offcanvas]:-translate-x-full"
+                : "right-0 group-data-[collapsible=offcanvas]:translate-x-full"
+              : side === "left"
+                ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
+                : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
             // Adjust the padding for floating and inset variants.
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -304,6 +324,7 @@ function Sidebar({
           )}
           data-slot="sidebar-container"
           {...props}
+          style={sidebarContainerStyle}
         >
           <div
             className="flex h-full w-full flex-col bg-sidebar surface-grain group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm/5"

@@ -1,10 +1,9 @@
 /**
  * Browser defaults - resolves the configured starting state for preview tabs.
  *
- * Settings → Integrations → Browser lets the user pick the viewport, zoom, and
- * appearance a preview tab should open at. Those preferences apply to every
- * entry point that opens a tab without stating its own: the user opening a
- * browser panel, and agents calling `preview_open` with no size.
+ * Settings → Integrations → Browser lets the user pick the viewport, zoom,
+ * appearance, and dev-server URL routing. Those preferences apply to the
+ * desktop preview wherever the corresponding choice is not explicit.
  *
  * The values live in client settings because the Chromium guest they configure
  * is desktop-local, so this module reads them through the same external store
@@ -14,6 +13,7 @@
  * @module browserDefaults
  */
 import type {
+  BrowserDevServerRouting,
   DesktopPreviewTabDefaults,
   PreviewAppearancePreference,
   PreviewViewportSetting,
@@ -31,6 +31,7 @@ export interface BrowserDefaults {
   readonly viewport: PreviewViewportSetting;
   readonly zoomFactor: number;
   readonly appearance: PreviewAppearancePreference;
+  readonly devServerRouting: BrowserDevServerRouting;
   readonly autoShowFloatingPreview: boolean;
 }
 
@@ -38,11 +39,13 @@ const toBrowserDefaults = (settings: {
   readonly browserDefaultViewport: PreviewViewportSetting;
   readonly browserDefaultZoomFactor: number;
   readonly browserDefaultAppearance: PreviewAppearancePreference;
+  readonly browserDevServerRouting: BrowserDevServerRouting;
   readonly browserAutoShowFloatingPreview: boolean;
 }): BrowserDefaults => ({
   viewport: settings.browserDefaultViewport,
   zoomFactor: settings.browserDefaultZoomFactor,
   appearance: settings.browserDefaultAppearance,
+  devServerRouting: settings.browserDevServerRouting,
   autoShowFloatingPreview: settings.browserAutoShowFloatingPreview,
 });
 
@@ -56,7 +59,7 @@ export function getBrowserDefaults(): BrowserDefaults {
  *
  * Opening a preview is asynchronous anyway, and before hydration the snapshot
  * is the schema defaults rather than the user's — a tab opened in that window
- * would be born at the wrong viewport, zoom and appearance and never corrected.
+ * would be born with the wrong client-local preferences and never corrected.
  */
 export async function resolveBrowserDefaults(): Promise<BrowserDefaults> {
   await ensureClientSettingsHydrated();

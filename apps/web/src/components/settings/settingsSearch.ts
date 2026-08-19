@@ -77,6 +77,16 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "appearance",
   },
   {
+    id: "sidebar-mode",
+    title: "Sidebar mode",
+    to: "/settings/appearance",
+  },
+  {
+    id: "sidebar-slide-speed",
+    title: "Sidebar slide speed",
+    to: "/settings/appearance",
+  },
+  {
     id: "interface-font",
     title: "Interface font",
     to: "/settings/appearance",
@@ -109,6 +119,11 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "project-grouping",
     title: "Project grouping",
+    to: "/settings/general",
+  },
+  {
+    id: "thread-order",
+    title: "Thread order",
     to: "/settings/general",
   },
   {
@@ -217,6 +232,12 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "browser-default-viewport",
     title: "Default browser viewport",
+    to: "/settings/integrations",
+    targetId: "browser",
+  },
+  {
+    id: "browser-dev-server-routing",
+    title: "Dev server URL routing",
     to: "/settings/integrations",
     targetId: "browser",
   },
