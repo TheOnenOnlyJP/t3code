@@ -35,6 +35,7 @@ import * as TestClock from "effect/testing/TestClock";
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
+import type { ClaudeOAuthPool } from "../Drivers/ClaudeOAuthPool.ts";
 import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { makeClaudeAdapter, type ClaudeAdapterLiveOptions } from "./ClaudeAdapter.ts";
@@ -161,8 +162,18 @@ function makeHarness(config?: {
   readonly baseDir?: string;
   readonly claudeConfig?: Partial<ClaudeSettings>;
   readonly instanceId?: ProviderInstanceId;
+  readonly oauthPool?: ClaudeOAuthPool;
 }) {
   const query = new FakeClaudeQuery();
+  const queries: Array<FakeClaudeQuery> = [];
+  const createInputs: Array<{
+    readonly prompt: AsyncIterable<SDKUserMessage>;
+    readonly options: ClaudeQueryOptions;
+  }> = [];
+  const queryCountWaiters: Array<{
+    readonly count: number;
+    readonly resolve: () => void;
+  }> = [];
   let createInput:
     | {
         readonly prompt: AsyncIterable<SDKUserMessage>;
@@ -172,9 +183,17 @@ function makeHarness(config?: {
 
   const adapterOptions: ClaudeAdapterLiveOptions = {
     ...(config?.instanceId ? { instanceId: config.instanceId } : {}),
+    ...(config?.oauthPool ? { oauthPool: config.oauthPool } : {}),
     createQuery: (input) => {
       createInput = input;
-      return query;
+      createInputs.push(input);
+      const nextQuery = queries.length === 0 ? query : new FakeClaudeQuery();
+      queries.push(nextQuery);
+      for (const waiter of queryCountWaiters.splice(0)) {
+        if (queries.length >= waiter.count) waiter.resolve();
+        else queryCountWaiters.push(waiter);
+      }
+      return nextQuery;
     },
     ...(config?.nativeEventLogger
       ? {
@@ -207,6 +226,14 @@ function makeHarness(config?: {
     ),
     query,
     getLastCreateQueryInput: () => createInput,
+    getCreateQueryInputs: () => [...createInputs],
+    getQuery: (index: number) => queries[index],
+    waitForQueryCount: (count: number) => {
+      if (queries.length >= count) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        queryCountWaiters.push({ count, resolve });
+      });
+    },
   };
 }
 
@@ -271,6 +298,51 @@ async function readFirstPromptMessage(
 
 const THREAD_ID = ThreadId.make("thread-claude-1");
 const RESUME_THREAD_ID = ThreadId.make("thread-claude-resume");
+
+function makeOAuthPool(): ClaudeOAuthPool & {
+  readonly exhaustedLabels: Array<string>;
+} {
+  const accounts = [
+    {
+      id: "primary",
+      label: "work",
+      tokenKey: "T3_CLAUDE_CODE_OAUTH_TOKEN",
+      token: "primary-token",
+      fingerprint: "primary-fingerprint",
+    },
+    {
+      id: "slot2",
+      label: "backup",
+      tokenKey: "T3_CLAUDE_CODE_OAUTH_TOKEN_2",
+      token: "backup-token",
+      fingerprint: "backup-fingerprint",
+    },
+  ];
+  const exhaustedLabels: Array<string> = [];
+
+  return {
+    size: accounts.length,
+    exhaustedLabels,
+    pick: async ({ exclude = new Set() }) => ({
+      account: accounts.find((account) => !exclude.has(account.fingerprint)),
+      lastResort: false,
+      earliestReset: undefined,
+    }),
+    markExhausted: (account) => {
+      exhaustedLabels.push(account.label);
+    },
+    markInvalid: (account) => {
+      exhaustedLabels.push(account.label);
+    },
+    markHealthy: () => {},
+    environmentFor: (environment, account) => ({
+      ...environment,
+      ...(account ? { CLAUDE_CODE_OAUTH_TOKEN: account.token } : {}),
+    }),
+    earliestReset: () => undefined,
+    snapshot: () => [],
+  };
+}
 
 describe("ClaudeAdapterLive", () => {
   it.effect("returns validation error for non-claude provider on startSession", () => {
@@ -461,6 +533,63 @@ describe("ClaudeAdapterLive", () => {
         createInput?.options.env?.CLAUDE_CONFIG_DIR,
         NodePath.join(NodeOS.homedir(), ".claude-work"),
       );
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("continues the same Claude turn on the next OAuth account after a usage limit", () => {
+    const oauthPool = makeOAuthPool();
+    const harness = makeHarness({ oauthPool });
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const session = yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        modelSelection: createModelSelection(
+          ProviderInstanceId.make("claudeAgent"),
+          "claude-opus-5",
+        ),
+        runtimeMode: "full-access",
+      });
+
+      yield* adapter.sendTurn({
+        threadId: session.threadId,
+        input: "Finish the migration",
+        attachments: [],
+      });
+
+      const firstCreate = harness.getCreateQueryInputs()[0];
+      const resumeCursor = session.resumeCursor as { readonly resume?: string } | undefined;
+      assert.equal(firstCreate?.options.env?.CLAUDE_CODE_OAUTH_TOKEN, "primary-token");
+      assert.equal(
+        yield* Effect.promise(() => readFirstPromptText(firstCreate)),
+        "Finish the migration",
+      );
+
+      harness.query.emit({
+        type: "rate_limit_event",
+        rate_limit_info: {
+          status: "rejected",
+          rateLimitType: "five_hour",
+          resetsAt: 1_785_805_200,
+        },
+        uuid: "00000000-0000-4000-8000-000000000001",
+        session_id: String(resumeCursor?.resume),
+      });
+
+      yield* Effect.promise(() => harness.waitForQueryCount(2));
+      const secondCreate = harness.getCreateQueryInputs()[1];
+      assert.equal(secondCreate?.options.env?.CLAUDE_CODE_OAUTH_TOKEN, "backup-token");
+      assert.equal(secondCreate?.options.resume, resumeCursor?.resume);
+      assert.isUndefined(secondCreate?.options.sessionId);
+      assert.include(
+        yield* Effect.promise(() => readFirstPromptText(secondCreate)),
+        "Continue from the existing session transcript",
+      );
+      assert.equal(harness.query.closeCalls, 1);
+      assert.deepEqual(oauthPool.exhaustedLabels, ["work"]);
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),

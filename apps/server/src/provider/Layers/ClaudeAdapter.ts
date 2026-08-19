@@ -78,6 +78,14 @@ import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
+  CLAUDE_OAUTH_CONTINUATION_PROMPT,
+  classifyClaudeOAuthFailure,
+  createClaudeOAuthPool,
+  type ClaudeOAuthAccount,
+  type ClaudeOAuthFailure,
+  type ClaudeOAuthPool,
+} from "../Drivers/ClaudeOAuthPool.ts";
+import {
   getClaudeModelCapabilities,
   isClaudeUltracodeEffort,
   normalizeClaudeCliEffort,
@@ -244,14 +252,16 @@ interface ClaudeTaskAgentState {
 interface ClaudeSessionContext {
   session: ProviderSession;
   readonly promptQueue: Queue.Queue<PromptQueueItem>;
-  readonly query: ClaudeQueryRuntime;
+  query: ClaudeQueryRuntime;
+  queryGeneration: number;
   streamFiber: Fiber.Fiber<void, Error> | undefined;
   readonly startedAt: string;
   readonly basePermissionMode: PermissionMode | undefined;
+  currentPermissionMode: PermissionMode | undefined;
   currentApiModelId: string | undefined;
   /** Effective effort for the session's turns; subagents without an explicit
    * effort override inherit this. */
-  currentEffort: string | undefined;
+  currentEffort: ClaudeSdkEffort | undefined;
   resumeSessionId: string | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
@@ -278,6 +288,19 @@ interface ClaudeSessionContext {
   lastKnownTotalProcessedTokens: number | undefined;
   lastAssistantUuid: string | undefined;
   lastThreadStartedId: string | undefined;
+  oauthAccount: ClaudeOAuthAccount | undefined;
+  readonly oauthAttemptedFingerprints: Set<string>;
+  readonly makePrompt: (initialMessage?: SDKUserMessage) => AsyncIterable<SDKUserMessage>;
+  readonly createQueryRuntime: (input: {
+    readonly prompt: AsyncIterable<SDKUserMessage>;
+    readonly account: ClaudeOAuthAccount | undefined;
+    readonly resume?: string;
+    readonly sessionId?: string;
+    readonly model?: string;
+    readonly effort?: ClaudeSdkEffort;
+    readonly permissionMode?: PermissionMode;
+  }) => Effect.Effect<ClaudeQueryRuntime, ProviderAdapterProcessError>;
+  readonly startStream: (context: ClaudeSessionContext) => void;
   stopped: boolean;
 }
 
@@ -295,6 +318,7 @@ interface ClaudeQueryRuntime extends AsyncIterable<SDKMessage> {
 export interface ClaudeAdapterLiveOptions {
   readonly instanceId?: ProviderInstanceId;
   readonly environment?: NodeJS.ProcessEnv;
+  readonly oauthPool?: ClaudeOAuthPool;
   readonly createQuery?: (input: {
     readonly prompt: AsyncIterable<SDKUserMessage>;
     readonly options: ClaudeQueryOptions;
@@ -1663,6 +1687,18 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
   );
+  const oauthPool =
+    options?.oauthPool ??
+    createClaudeOAuthPool({
+      environment: claudeEnvironment,
+      stateFile: path.join(serverConfig.stateDir, `claude-oauth-${String(boundInstanceId)}.json`),
+    });
+  if (oauthPool.size > 0) {
+    yield* Effect.logInfo("claude.oauth.pool.configured", {
+      providerInstanceId: boundInstanceId,
+      accountCount: oauthPool.size,
+    });
+  }
   const claudeSdkExecutablePath = yield* resolveClaudeSdkExecutablePath(
     claudeSettings.binaryPath,
     claudeEnvironment,
@@ -2974,6 +3010,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       return;
     }
 
+    if (message.subtype === "success" && message.is_error === false && context.oauthAccount) {
+      oauthPool.markHealthy(context.oauthAccount, context.currentApiModelId);
+    }
+
     const status = turnStatusFromResult(message);
     const errorMessage = resultUserFacingError(message);
 
@@ -3516,12 +3556,124 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
   });
 
+  const switchClaudeOAuthAccount = Effect.fn("switchClaudeOAuthAccount")(function* (
+    context: ClaudeSessionContext,
+    failure: ClaudeOAuthFailure,
+  ) {
+    const previousAccount = context.oauthAccount;
+    if (oauthPool.size === 0 || !previousAccount) {
+      return false;
+    }
+
+    if (failure.kind === "invalid") {
+      oauthPool.markInvalid(previousAccount, failure.reason);
+    } else {
+      oauthPool.markExhausted(previousAccount, {
+        model: context.currentApiModelId,
+        reason: failure.reason,
+        ...(failure.resetsAt ? { resetsAt: failure.resetsAt } : {}),
+      });
+    }
+
+    const next = yield* Effect.tryPromise({
+      try: () =>
+        oauthPool.pick({
+          model: context.currentApiModelId,
+          exclude: context.oauthAttemptedFingerprints,
+        }),
+      catch: (cause) =>
+        new ProviderAdapterProcessError({
+          provider: PROVIDER,
+          threadId: context.session.threadId,
+          detail: "Failed to select the next Claude OAuth account.",
+          cause,
+        }),
+    });
+    if (!next.account || next.lastResort) {
+      return false;
+    }
+
+    const continuationMessage = buildUserMessage({
+      sdkContent: [{ type: "text", text: CLAUDE_OAUTH_CONTINUATION_PROMPT }],
+    });
+    const nextQuery = yield* context.createQueryRuntime({
+      prompt: context.makePrompt(continuationMessage),
+      account: next.account,
+      ...(context.resumeSessionId ? { resume: context.resumeSessionId } : {}),
+      ...(context.currentApiModelId ? { model: context.currentApiModelId } : {}),
+      ...(context.currentEffort ? { effort: context.currentEffort } : {}),
+      ...(context.currentPermissionMode ? { permissionMode: context.currentPermissionMode } : {}),
+    });
+
+    const previousQuery = context.query;
+    context.queryGeneration += 1;
+    context.query = nextQuery;
+    context.oauthAccount = next.account;
+    context.oauthAttemptedFingerprints.add(next.account.fingerprint);
+
+    yield* Effect.try({
+      try: () => previousQuery.close(),
+      catch: (cause) =>
+        new ProviderAdapterProcessError({
+          provider: PROVIDER,
+          threadId: context.session.threadId,
+          detail: "Failed to close the exhausted Claude OAuth query.",
+          cause,
+        }),
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("claude.oauth.previous-query-close-failed", {
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          errorTag: error._tag,
+        }),
+      ),
+    );
+
+    context.startStream(context);
+    yield* Effect.logInfo("claude.oauth.account-switched", {
+      providerInstanceId: boundInstanceId,
+      threadId: context.session.threadId,
+      previousLabel: previousAccount.label,
+      previousFingerprint: previousAccount.fingerprint,
+      nextLabel: next.account.label,
+      nextFingerprint: next.account.fingerprint,
+      reason: failure.reason,
+      lastResort: next.lastResort,
+      ...(next.earliestReset ? { earliestReset: next.earliestReset } : {}),
+    });
+    return true;
+  });
+
   const handleSdkMessage = Effect.fn("handleSdkMessage")(function* (
     context: ClaudeSessionContext,
     message: SDKMessage,
   ) {
     yield* logNativeSdkMessage(context, message);
     yield* ensureThreadId(context, message);
+
+    const oauthFailure = classifyClaudeOAuthFailure(message);
+    if (oauthFailure && oauthPool.size > 0) {
+      if (message.type === "rate_limit_event") {
+        yield* handleSdkTelemetryMessage(context, message);
+      }
+      const switched = yield* switchClaudeOAuthAccount(context, oauthFailure);
+      if (switched || message.type === "rate_limit_event") {
+        return;
+      }
+      if (message.type === "result") {
+        const earliestReset = oauthPool.earliestReset(context.currentApiModelId);
+        const errorMessage =
+          `All ${oauthPool.size} configured Claude OAuth account${oauthPool.size === 1 ? " is" : "s are"} unavailable.` +
+          (earliestReset ? ` Earliest usage reset: ${earliestReset}.` : "");
+        yield* emitRuntimeError(context, errorMessage);
+        yield* completeTurn(context, "failed", errorMessage, message);
+        return;
+      }
+      if (oauthFailure.synthetic) {
+        return;
+      }
+    }
 
     // Wire-only command bookkeeping has no user-facing T3 lifecycle.
     if (sdkMessageType(message) === "command_lifecycle") {
@@ -3570,9 +3722,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
   const runSdkStream = (
     context: ClaudeSessionContext,
+    queryRuntime: ClaudeQueryRuntime,
   ): Effect.Effect<void, ProviderAdapterProcessError> =>
     Stream.fromAsyncIterable(
-      context.query,
+      queryRuntime,
       (cause) =>
         new ProviderAdapterProcessError({
           provider: PROVIDER,
@@ -3660,7 +3813,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
     // Same reason as the approvals above: a request nobody can answer any more
     // must not stay open, or the thread can never be settled.
-    for (const pending of [...context.pendingUserInputs.values()]) {
+    for (const pending of context.pendingUserInputs.values()) {
       yield* pending.cancel;
     }
 
@@ -3789,14 +3942,21 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       const runPromise = Effect.runPromiseWith(runtimeContext);
 
       const promptQueue = yield* Queue.unbounded<PromptQueueItem>();
-      const prompt = Stream.fromQueue(promptQueue).pipe(
-        Stream.filter((item) => item.type === "message"),
-        Stream.map((item) => item.message),
-        Stream.catchCause((cause) =>
-          Cause.hasInterruptsOnly(cause) ? Stream.empty : Stream.failCause(cause),
-        ),
-        Stream.toAsyncIterable,
-      );
+      const makePrompt = (initialMessage?: SDKUserMessage): AsyncIterable<SDKUserMessage> => {
+        const queuedMessages = Stream.fromQueue(promptQueue).pipe(
+          Stream.filter((item) => item.type === "message"),
+          Stream.map((item) => item.message),
+          Stream.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause) ? Stream.empty : Stream.failCause(cause),
+          ),
+        );
+        return (
+          initialMessage
+            ? Stream.concat(Stream.succeed(initialMessage), queuedMessages)
+            : queuedMessages
+        ).pipe(Stream.toAsyncIterable);
+      };
+      const prompt = makePrompt();
 
       const pendingApprovals = new Map<ApprovalRequestId, PendingApproval>();
       const pendingUserInputs = new Map<ApprovalRequestId, PendingUserInput>();
@@ -4151,29 +4311,50 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         ...(input.cwd ? [input.cwd] : []),
         serverConfig.attachmentsDir,
       ];
-      const queryOptions: ClaudeQueryOptions = {
+      const initialOAuthSelection =
+        oauthPool.size === 0
+          ? { account: undefined, lastResort: false, earliestReset: undefined }
+          : yield* Effect.tryPromise({
+              try: () => oauthPool.pick({ model: apiModelId }),
+              catch: (cause) =>
+                new ProviderAdapterProcessError({
+                  provider: PROVIDER,
+                  threadId,
+                  detail: "Failed to select a Claude OAuth account.",
+                  cause,
+                }),
+            });
+      const oauthAttemptedFingerprints = new Set<string>();
+      if (initialOAuthSelection.account) {
+        oauthAttemptedFingerprints.add(initialOAuthSelection.account.fingerprint);
+      }
+
+      const buildQueryOptions = (queryInput: {
+        readonly account: ClaudeOAuthAccount | undefined;
+        readonly resume?: string;
+        readonly sessionId?: string;
+        readonly model?: string;
+        readonly effort?: ClaudeSdkEffort;
+        readonly permissionMode?: PermissionMode;
+      }): ClaudeQueryOptions => ({
         ...(input.cwd ? { cwd: input.cwd } : {}),
-        ...(apiModelId ? { model: apiModelId } : {}),
+        ...(queryInput.model ? { model: queryInput.model } : {}),
         pathToClaudeCodeExecutable: claudeBinaryPath,
         systemPrompt: { type: "preset", preset: "claude_code" },
         settingSources: [...CLAUDE_SETTING_SOURCES],
         // `ultracode` is a Claude Code setting, not an API effort level. It is
         // normalized to `xhigh` above and paired with `settings.ultracode`.
-        ...(effectiveEffort
-          ? {
-              effort: effectiveEffort as unknown as NonNullable<ClaudeQueryOptions["effort"]>,
-            }
-          : {}),
-        ...(permissionMode ? { permissionMode } : {}),
-        ...(permissionMode === "bypassPermissions"
+        ...(queryInput.effort ? { effort: queryInput.effort } : {}),
+        ...(queryInput.permissionMode ? { permissionMode: queryInput.permissionMode } : {}),
+        ...(queryInput.permissionMode === "bypassPermissions"
           ? { allowDangerouslySkipPermissions: true }
           : {}),
         ...(Object.keys(settings).length > 0 ? { settings } : {}),
-        ...(existingResumeSessionId ? { resume: existingResumeSessionId } : {}),
-        ...(newSessionId ? { sessionId: newSessionId } : {}),
+        ...(queryInput.resume ? { resume: queryInput.resume } : {}),
+        ...(queryInput.sessionId ? { sessionId: queryInput.sessionId } : {}),
         includePartialMessages: true,
         canUseTool,
-        env: claudeEnvironment,
+        env: oauthPool.environmentFor(claudeEnvironment, queryInput.account),
         additionalDirectories,
         ...(Object.keys(extraArgs).length > 0 ? { extraArgs } : {}),
         ...(mcpSession
@@ -4189,7 +4370,27 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
               },
             }
           : {}),
-      };
+      });
+
+      const createQueryRuntime: ClaudeSessionContext["createQueryRuntime"] = Effect.fn(
+        "createClaudeQueryRuntime",
+      )(function* (queryInput) {
+        const queryOptions = buildQueryOptions(queryInput);
+        return yield* Effect.try({
+          try: () =>
+            createQuery({
+              prompt: queryInput.prompt,
+              options: queryOptions,
+            }),
+          catch: (cause) =>
+            new ProviderAdapterProcessError({
+              provider: PROVIDER,
+              threadId,
+              detail: "Failed to start Claude runtime session.",
+              cause,
+            }),
+        });
+      });
 
       yield* Effect.annotateCurrentSpan({
         "provider.kind": PROVIDER,
@@ -4216,20 +4417,47 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         "claude.query.path_to_executable": claudeBinaryPath,
       });
 
-      const queryRuntime = yield* Effect.try({
-        try: () =>
-          createQuery({
-            prompt,
-            options: queryOptions,
-          }),
-        catch: (cause) =>
-          new ProviderAdapterProcessError({
-            provider: PROVIDER,
-            threadId,
-            detail: "Failed to start Claude runtime session.",
-            cause,
-          }),
+      const queryRuntime = yield* createQueryRuntime({
+        prompt,
+        account: initialOAuthSelection.account,
+        ...(apiModelId ? { model: apiModelId } : {}),
+        ...(effectiveEffort ? { effort: effectiveEffort } : {}),
+        ...(permissionMode ? { permissionMode } : {}),
+        ...(existingResumeSessionId ? { resume: existingResumeSessionId } : {}),
+        ...(newSessionId ? { sessionId: newSessionId } : {}),
       });
+
+      const startStream: ClaudeSessionContext["startStream"] = (streamContext) => {
+        const queryGeneration = streamContext.queryGeneration;
+        const activeQuery = streamContext.query;
+        let streamFiber: Fiber.Fiber<void, never>;
+        streamFiber = runFork(
+          Effect.exit(runSdkStream(streamContext, activeQuery)).pipe(
+            Effect.flatMap((exit) => {
+              if (streamContext.stopped || streamContext.queryGeneration !== queryGeneration) {
+                return Effect.void;
+              }
+              if (streamContext.streamFiber === streamFiber) {
+                streamContext.streamFiber = undefined;
+              }
+              return handleStreamExit(streamContext, exit).pipe(
+                Effect.catch((cause) =>
+                  Effect.logError("Failed to close Claude runtime stream.", { cause }),
+                ),
+              );
+            }),
+          ),
+        );
+        streamContext.streamFiber = streamFiber;
+        streamFiber.addObserver(() => {
+          if (
+            streamContext.queryGeneration === queryGeneration &&
+            streamContext.streamFiber === streamFiber
+          ) {
+            streamContext.streamFiber = undefined;
+          }
+        });
+      };
 
       const session: ProviderSession = {
         threadId,
@@ -4254,9 +4482,11 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         session,
         promptQueue,
         query: queryRuntime,
+        queryGeneration: 0,
         streamFiber: undefined,
         startedAt,
         basePermissionMode: permissionMode,
+        currentPermissionMode: permissionMode,
         currentApiModelId: apiModelId,
         currentEffort: effectiveEffort ?? undefined,
         resumeSessionId: sessionId,
@@ -4274,6 +4504,11 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         lastKnownTotalProcessedTokens: undefined,
         lastAssistantUuid: resumeState?.resumeSessionAt,
         lastThreadStartedId: undefined,
+        oauthAccount: initialOAuthSelection.account,
+        oauthAttemptedFingerprints,
+        makePrompt,
+        createQueryRuntime,
+        startStream,
         stopped: false,
       };
       yield* Ref.set(contextRef, context);
@@ -4322,30 +4557,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         providerRefs: {},
       });
 
-      let streamFiber: Fiber.Fiber<void, never>;
-      streamFiber = runFork(
-        Effect.exit(runSdkStream(context)).pipe(
-          Effect.flatMap((exit) => {
-            if (context.stopped) {
-              return Effect.void;
-            }
-            if (context.streamFiber === streamFiber) {
-              context.streamFiber = undefined;
-            }
-            return handleStreamExit(context, exit).pipe(
-              Effect.catch((cause) =>
-                Effect.logError("Failed to close Claude runtime stream.", { cause }),
-              ),
-            );
-          }),
-        ),
-      );
-      context.streamFiber = streamFiber;
-      streamFiber.addObserver(() => {
-        if (context.streamFiber === streamFiber) {
-          context.streamFiber = undefined;
-        }
-      });
+      context.startStream(context);
 
       return {
         ...session,
@@ -4402,15 +4614,22 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         try: () => context.query.setPermissionMode("plan"),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),
       });
+      context.currentPermissionMode = "plan";
     } else if (input.interactionMode === "default") {
+      const defaultPermissionMode = context.basePermissionMode ?? "default";
       yield* Effect.tryPromise({
-        try: () => context.query.setPermissionMode(context.basePermissionMode ?? "default"),
+        try: () => context.query.setPermissionMode(defaultPermissionMode),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),
       });
+      context.currentPermissionMode = defaultPermissionMode;
     }
 
     const turnId = steeringTurnState?.turnId ?? TurnId.make(yield* randomUUIDv4);
     if (steeringTurnState === null) {
+      context.oauthAttemptedFingerprints.clear();
+      if (context.oauthAccount) {
+        context.oauthAttemptedFingerprints.add(context.oauthAccount.fingerprint);
+      }
       const turnState: ClaudeTurnState = {
         turnId,
         startedAt: yield* nowIso,
