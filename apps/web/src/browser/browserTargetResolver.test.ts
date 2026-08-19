@@ -25,6 +25,27 @@ describe("browser target resolver", () => {
     });
   });
 
+  it("keeps environment ports on the desktop localhost when configured", async () => {
+    const { resolveBrowserNavigationTarget } = await import("./browserTargetResolver");
+    expect(
+      resolveBrowserNavigationTarget(
+        EnvironmentId.make("environment-1"),
+        {
+          kind: "environment-port",
+          port: 5173,
+          path: "/dashboard?mode=test",
+        },
+        "client-localhost",
+      ),
+    ).toEqual({
+      requestedUrl: "http://localhost:5173/dashboard?mode=test",
+      resolvedUrl: "http://localhost:5173/dashboard?mode=test",
+      resolutionKind: "direct",
+      environmentId: "environment-1",
+    });
+    expect(readPreparedConnection).not.toHaveBeenCalled();
+  });
+
   it("maps localhost URL navigation onto a remote Tailscale IPv4 host", async () => {
     readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://100.65.180.100:3773" });
     const { resolveBrowserNavigationTarget } = await import("./browserTargetResolver");
@@ -39,6 +60,41 @@ describe("browser target resolver", () => {
       resolutionKind: "direct-private-network",
       environmentId: "environment-1",
     });
+  });
+
+  it("keeps explicit localhost URLs on the desktop when configured", async () => {
+    const { resolveBrowserNavigationTarget } = await import("./browserTargetResolver");
+    expect(
+      resolveBrowserNavigationTarget(
+        EnvironmentId.make("environment-1"),
+        {
+          kind: "url",
+          url: "http://localhost:5173/dashboard?mode=test#results",
+        },
+        "client-localhost",
+      ),
+    ).toEqual({
+      requestedUrl: "http://localhost:5173/dashboard?mode=test#results",
+      resolvedUrl: "http://localhost:5173/dashboard?mode=test#results",
+      resolutionKind: "direct",
+      environmentId: "environment-1",
+    });
+    expect(readPreparedConnection).not.toHaveBeenCalled();
+  });
+
+  it("normalizes wildcard loopback URLs to desktop localhost when configured", async () => {
+    const { resolveBrowserNavigationTarget } = await import("./browserTargetResolver");
+    expect(
+      resolveBrowserNavigationTarget(
+        EnvironmentId.make("environment-1"),
+        {
+          kind: "url",
+          url: "http://0.0.0.0:3000/signin",
+        },
+        "client-localhost",
+      ).resolvedUrl,
+    ).toBe("http://localhost:3000/signin");
+    expect(readPreparedConnection).not.toHaveBeenCalled();
   });
 
   it("preserves URL credentials when mapping localhost onto a remote host", async () => {

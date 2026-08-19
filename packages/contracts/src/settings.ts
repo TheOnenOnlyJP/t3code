@@ -30,11 +30,25 @@ export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"])
 export type TimestampFormat = typeof TimestampFormat.Type;
 export const DEFAULT_TIMESTAMP_FORMAT: TimestampFormat = "locale";
 
+export const SidebarVisibilityMode = Schema.Literals(["docked", "auto-hide"]);
+export type SidebarVisibilityMode = typeof SidebarVisibilityMode.Type;
+export const DEFAULT_SIDEBAR_VISIBILITY_MODE: SidebarVisibilityMode = "docked";
+export const MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS = 0;
+export const MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS = 500;
+export const SidebarAutoHideTransitionDurationMs = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+    maximum: MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+  }),
+);
+export type SidebarAutoHideTransitionDurationMs = typeof SidebarAutoHideTransitionDurationMs.Type;
+export const DEFAULT_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS: SidebarAutoHideTransitionDurationMs = 150;
+
 export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_at", "manual"]);
 export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
 export const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 
-export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);
+export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at", "manual"]);
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 export const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
 
@@ -131,6 +145,9 @@ export type FontFamilyPreference = typeof FontFamilyPreference.Type;
  */
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
 export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
+export const BrowserDevServerRouting = Schema.Literals(["environment-host", "client-localhost"]);
+export type BrowserDevServerRouting = typeof BrowserDevServerRouting.Type;
+export const DEFAULT_BROWSER_DEV_SERVER_ROUTING: BrowserDevServerRouting = "environment-host";
 
 export const ClientSettingsSchema = Schema.Struct({
   browserDefaultViewport: PreviewViewportSetting.pipe(
@@ -141,6 +158,14 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   browserDefaultAppearance: PreviewAppearancePreference.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PREVIEW_APPEARANCE)),
+  ),
+  /**
+   * Where loopback dev-server URLs opened by preview tools should resolve.
+   * Client-local because `client-localhost` means the machine running the
+   * desktop preview, which may differ from the connected environment.
+   */
+  browserDevServerRouting: BrowserDevServerRouting.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_DEV_SERVER_ROUTING)),
   ),
   /**
    * Whether an agent opening a preview pops the floating mini player into
@@ -219,6 +244,12 @@ export const ClientSettingsSchema = Schema.Struct({
   // old keys, so everyone, including prior beta opt-outs, resets to the new
   // default sidebar.
   legacySidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  sidebarVisibilityMode: SidebarVisibilityMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_VISIBILITY_MODE)),
+  ),
+  sidebarAutoHideTransitionDurationMs: SidebarAutoHideTransitionDurationMs.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS)),
+  ),
   sidebarAutoSettleAfterDays: Schema.NullOr(SidebarAutoSettleAfterDays).pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS)),
   ),
@@ -863,6 +894,7 @@ export const ClientSettingsPatch = Schema.Struct({
   browserDefaultViewport: Schema.optionalKey(PreviewViewportSetting),
   browserDefaultZoomFactor: Schema.optionalKey(PreviewZoomFactor),
   browserDefaultAppearance: Schema.optionalKey(PreviewAppearancePreference),
+  browserDevServerRouting: Schema.optionalKey(BrowserDevServerRouting),
   browserAutoShowFloatingPreview: Schema.optionalKey(Schema.Boolean),
   confirmQuit: Schema.optionalKey(Schema.Boolean),
   confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
@@ -902,6 +934,8 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   legacySidebarEnabled: Schema.optionalKey(Schema.Boolean),
+  sidebarVisibilityMode: Schema.optionalKey(SidebarVisibilityMode),
+  sidebarAutoHideTransitionDurationMs: Schema.optionalKey(SidebarAutoHideTransitionDurationMs),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
   sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),

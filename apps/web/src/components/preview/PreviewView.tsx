@@ -189,7 +189,11 @@ export function PreviewView({
   const handleOpenServerUrl = useCallback(
     async (next: string) => {
       try {
-        const resolved = resolveDiscoveredServerUrl(threadRef.environmentId, next);
+        const resolved = resolveDiscoveredServerUrl(
+          threadRef.environmentId,
+          next,
+          browserDefaults.devServerRouting,
+        );
         if (await navigateToResolvedUrl(resolved)) {
           recordVisitForThread(threadRef, next);
         }
@@ -197,7 +201,7 @@ export function PreviewView({
         // Server-side `failed` event renders the unreachable view.
       }
     },
-    [navigateToResolvedUrl, threadRef],
+    [browserDefaults.devServerRouting, navigateToResolvedUrl, threadRef],
   );
 
   const handleRefresh = useCallback(() => {
@@ -712,6 +716,7 @@ export function PreviewView({
           <PreviewEmptyState
             threadRef={threadRef}
             environmentId={threadRef.environmentId}
+            devServerRouting={browserDefaults.devServerRouting}
             configuredUrls={configuredUrls}
             recentEntries={recentHistoryEntries}
             onRemoveRecent={(url) => removeUrlForThread(threadRef, url)}

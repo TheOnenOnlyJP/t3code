@@ -18,20 +18,27 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+  DEFAULT_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+  DEFAULT_SIDEBAR_THREAD_SORT_ORDER,
+  DEFAULT_SIDEBAR_VISIBILITY_MODE,
   DEFAULT_UNIFIED_SETTINGS,
   type EnvironmentIdentificationMode,
   MAX_CODE_FONT_SIZE,
   MAX_GLASS_OPACITY,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
+  MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
   MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   MAX_TERMINAL_FONT_SIZE,
   MIN_CODE_FONT_SIZE,
   MIN_GLASS_OPACITY,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
+  MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
   MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   MIN_TERMINAL_FONT_SIZE,
+  type SidebarVisibilityMode,
+  type SidebarThreadSortOrder,
 } from "@t3tools/contracts/settings";
 import { resolveServerBackgroundActivitySettings } from "@t3tools/shared/backgroundActivitySettings";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -150,6 +157,42 @@ const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, s
   pill: "Version pill",
   none: "None",
 };
+
+const SIDEBAR_VISIBILITY_MODE_LABELS: Record<SidebarVisibilityMode, string> = {
+  docked: "Docked",
+  "auto-hide": "Auto-hide",
+};
+
+const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSortOrder, string> = {
+  updated_at: "Recent activity",
+  created_at: "Newest created",
+  manual: "Manual",
+};
+
+type SettingsSliderStyle = CSSProperties & {
+  readonly "--settings-slider-progress": string;
+  readonly "--settings-slider-fill-offset": string;
+};
+
+function makeSettingsSliderStyle({
+  value,
+  minimum,
+  maximum,
+}: {
+  readonly value: number;
+  readonly minimum: number;
+  readonly maximum: number;
+}): SettingsSliderStyle {
+  const ratio = (value - minimum) / (maximum - minimum);
+  return {
+    "--settings-slider-progress": `${ratio * 100}%`,
+    "--settings-slider-fill-offset": `${0.5 - ratio}rem`,
+  };
+}
+
+function formatSidebarSlideDuration(durationMs: number) {
+  return durationMs === 0 ? "Instant" : `${durationMs} ms`;
+}
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -542,6 +585,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.browserDefaultViewport,
       settings.browserDefaultZoomFactor,
       settings.browserDefaultAppearance,
+      settings.browserDevServerRouting,
       settings.browserAutoShowFloatingPreview,
       settings.enableAgentBrowserAccess,
       settings.confirmQuit,
@@ -671,6 +715,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       browserDefaultViewport: DEFAULT_UNIFIED_SETTINGS.browserDefaultViewport,
       browserDefaultZoomFactor: DEFAULT_UNIFIED_SETTINGS.browserDefaultZoomFactor,
       browserDefaultAppearance: DEFAULT_UNIFIED_SETTINGS.browserDefaultAppearance,
+      browserDevServerRouting: DEFAULT_UNIFIED_SETTINGS.browserDevServerRouting,
       browserAutoShowFloatingPreview: DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
       // Re-granted like any other default. The confirmation dialog lists it by
       // name, so a user restoring defaults is told the agent regains access
@@ -980,12 +1025,16 @@ export function AppearanceSettingsPanel() {
   const environmentStageLabel = useEnvironmentStageLabel();
   const showEnvironmentIdentification =
     resolveEnvironmentIdentificationPillLabel(environmentStageLabel) !== null;
-  const glassOpacityRatio =
-    (settings.glassOpacity - MIN_GLASS_OPACITY) / (MAX_GLASS_OPACITY - MIN_GLASS_OPACITY);
-  const glassOpacitySliderStyle = {
-    "--settings-slider-progress": `${glassOpacityRatio * 100}%`,
-    "--settings-slider-fill-offset": `${0.5 - glassOpacityRatio}rem`,
-  } as CSSProperties;
+  const glassOpacitySliderStyle = makeSettingsSliderStyle({
+    value: settings.glassOpacity,
+    minimum: MIN_GLASS_OPACITY,
+    maximum: MAX_GLASS_OPACITY,
+  });
+  const sidebarSlideSpeedSliderStyle = makeSettingsSliderStyle({
+    value: settings.sidebarAutoHideTransitionDurationMs,
+    minimum: MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+    maximum: MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+  });
 
   return (
     <SettingsPageContainer>
@@ -1047,6 +1096,97 @@ export function AppearanceSettingsPanel() {
                 style={glassOpacitySliderStyle}
                 type="range"
                 value={settings.glassOpacity}
+              />
+            </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("sidebar-mode")}
+          description="Dock the sidebar beside your workspace, or hide it until the pointer reaches the left edge."
+          resetAction={
+            settings.sidebarVisibilityMode !== DEFAULT_SIDEBAR_VISIBILITY_MODE ? (
+              <SettingResetButton
+                label="sidebar mode"
+                onClick={() =>
+                  updateSettings({ sidebarVisibilityMode: DEFAULT_SIDEBAR_VISIBILITY_MODE })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarVisibilityMode}
+              onValueChange={(value) => {
+                if (value === "docked" || value === "auto-hide") {
+                  updateSettings({ sidebarVisibilityMode: value });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label="Sidebar mode">
+                <SelectValue>
+                  {SIDEBAR_VISIBILITY_MODE_LABELS[settings.sidebarVisibilityMode]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {Object.entries(SIDEBAR_VISIBILITY_MODE_LABELS).map(([value, label]) => (
+                  <SelectItem hideIndicator key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("sidebar-slide-speed")}
+          description="Control how quickly the auto-hidden sidebar slides in and out. Drag left for faster motion or right for slower motion."
+          resetAction={
+            settings.sidebarAutoHideTransitionDurationMs !==
+            DEFAULT_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS ? (
+              <SettingResetButton
+                label="sidebar slide speed"
+                onClick={() =>
+                  updateSettings({
+                    sidebarAutoHideTransitionDurationMs:
+                      DEFAULT_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex w-full items-center gap-3 sm:w-60">
+              <output
+                className="min-w-16 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                htmlFor="sidebar-slide-speed"
+              >
+                {formatSidebarSlideDuration(settings.sidebarAutoHideTransitionDurationMs)}
+              </output>
+              <input
+                aria-label="Sidebar slide speed"
+                aria-valuetext={formatSidebarSlideDuration(
+                  settings.sidebarAutoHideTransitionDurationMs,
+                )}
+                className="settings-slider min-w-0 flex-1"
+                id="sidebar-slide-speed"
+                max={MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS}
+                min={MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS}
+                onChange={(event) => {
+                  const durationMs = Number(event.currentTarget.value);
+                  if (
+                    Number.isInteger(durationMs) &&
+                    durationMs >= MIN_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS &&
+                    durationMs <= MAX_SIDEBAR_AUTO_HIDE_TRANSITION_DURATION_MS
+                  ) {
+                    updateSettings({ sidebarAutoHideTransitionDurationMs: durationMs });
+                  }
+                }}
+                step={25}
+                style={sidebarSlideSpeedSliderStyle}
+                type="range"
+                value={settings.sidebarAutoHideTransitionDurationMs}
               />
             </div>
           }
@@ -1875,6 +2015,48 @@ export function GeneralSettingsPanel() {
               }}
               aria-label="Project grouping"
             />
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("thread-order")}
+          description="Choose whether active threads follow your latest prompts, creation time, or drag-and-drop order."
+          resetAction={
+            settings.sidebarThreadSortOrder !== DEFAULT_SIDEBAR_THREAD_SORT_ORDER ? (
+              <SettingResetButton
+                label="thread order"
+                onClick={() =>
+                  updateSettings({ sidebarThreadSortOrder: DEFAULT_SIDEBAR_THREAD_SORT_ORDER })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarThreadSortOrder}
+              onValueChange={(value) => {
+                if (value === "updated_at" || value === "created_at" || value === "manual") {
+                  updateSettings({ sidebarThreadSortOrder: value });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-44" aria-label="Thread order">
+                <SelectValue>
+                  {SIDEBAR_THREAD_SORT_LABELS[settings.sidebarThreadSortOrder]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {(
+                  Object.entries(SIDEBAR_THREAD_SORT_LABELS) as Array<
+                    [SidebarThreadSortOrder, string]
+                  >
+                ).map(([value, label]) => (
+                  <SelectItem key={value} hideIndicator value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
 

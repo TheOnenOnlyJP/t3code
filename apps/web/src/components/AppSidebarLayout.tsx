@@ -14,7 +14,11 @@ import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalSt
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { cn, isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useEnvironmentIdentificationMode, useLegacySidebarEnabled } from "../hooks/useSettings";
+import {
+  useClientSettings,
+  useEnvironmentIdentificationMode,
+  useLegacySidebarEnabled,
+} from "../hooks/useSettings";
 import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
@@ -40,6 +44,7 @@ import {
   useSidebarVisibility,
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { shouldDismissAutoHiddenSidebar } from "./sidebar/SidebarAutoHide.logic";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
 
@@ -139,6 +144,12 @@ function ProjectProjectionRetention() {
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const legacySidebarEnabled = useLegacySidebarEnabled();
+  const sidebarVisibilityMode = useClientSettings((settings) => settings.sidebarVisibilityMode);
+  const sidebarAutoHideTransitionDurationMs = useClientSettings(
+    (settings) => settings.sidebarAutoHideTransitionDurationMs,
+  );
+  const autoHideSidebar = sidebarVisibilityMode === "auto-hide";
+  const [autoHideSidebarOpen, setAutoHideSidebarOpen] = useState(false);
   // Settings routes show the settings nav in place of whichever thread
   // sidebar is active.
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -166,10 +177,41 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   });
   const sidebarProviderStyle = {
     "--sidebar-width": `${sidebarWidth}px`,
+    ...(autoHideSidebar
+      ? {
+          "--sidebar-overlay-transition-duration": `${sidebarAutoHideTransitionDurationMs}ms`,
+        }
+      : {}),
     ...(isMacosDesktop && !isWindowFullscreen
       ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET }
       : {}),
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!autoHideSidebar) {
+      setAutoHideSidebarOpen(false);
+      return;
+    }
+    if (!autoHideSidebarOpen) return;
+
+    const onPointerMove = (event: PointerEvent) => {
+      const isResizing =
+        event.target instanceof Element &&
+        event.target.closest("[data-slot='sidebar-rail']") !== null;
+      if (
+        shouldDismissAutoHiddenSidebar({
+          clientX: event.clientX,
+          isResizing,
+          sidebarRight: sidebarWidth,
+        })
+      ) {
+        setAutoHideSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onPointerMove);
+  }, [autoHideSidebar, autoHideSidebarOpen, sidebarWidth]);
 
   useEffect(() => {
     if (!isMacosDesktop) return;
@@ -209,11 +251,23 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   }, [navigate, pathname]);
 
   return (
-    <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
+    <SidebarProvider
+      className="h-dvh! min-h-0!"
+      data-sidebar-auto-hide={
+        autoHideSidebar ? (autoHideSidebarOpen ? "open" : "closed") : undefined
+      }
+      defaultOpen
+      style={sidebarProviderStyle}
+      {...(autoHideSidebar
+        ? { open: autoHideSidebarOpen, onOpenChange: setAutoHideSidebarOpen }
+        : {})}
+    >
       <ProjectProjectionRetention />
       <Sidebar
         side="left"
         collapsible="offcanvas"
+        desktopLayout={autoHideSidebar ? "overlay" : "docked"}
+        desktopOverlayTransitionDurationMs={sidebarAutoHideTransitionDurationMs}
         data-app-sidebar=""
         className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
         resizable={{
@@ -238,6 +292,17 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         )}
         <SidebarRail onDoubleClick={resetSidebarWidth} />
       </Sidebar>
+      {autoHideSidebar ? (
+        <div
+          aria-hidden
+          className={cn(
+            "fixed inset-y-0 left-0 z-20 hidden w-2 md:block",
+            autoHideSidebarOpen && "pointer-events-none",
+          )}
+          data-slot="sidebar-auto-hide-edge"
+          onPointerEnter={() => setAutoHideSidebarOpen(true)}
+        />
+      ) : null}
       {children}
       <SidebarControl />
     </SidebarProvider>

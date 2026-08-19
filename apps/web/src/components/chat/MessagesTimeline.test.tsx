@@ -274,6 +274,29 @@ describe("MessagesTimeline", () => {
     expect(markup).toContain("px-1 text-sm leading-relaxed text-muted-foreground");
   });
 
+  it("hides the turn-history minimap for the full auto-hide sidebar interval", () => {
+    const firstEntry = buildUserTimelineEntry("First prompt.");
+    const secondEntry = {
+      ...buildUserTimelineEntry("Second prompt."),
+      id: "entry-2",
+      message: {
+        ...buildUserTimelineEntry("Second prompt.").message,
+        id: MessageId.make("message-2"),
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline {...buildProps()} timelineEntries={[firstEntry, secondEntry]} />,
+    );
+
+    expect(markup).toContain('data-testid="timeline-minimap"');
+    expect(markup).toContain("group-data-[sidebar-auto-hide=open]/sidebar-wrapper:invisible");
+    expect(markup).toContain("group-data-[sidebar-auto-hide=open]/sidebar-wrapper:duration-0");
+    expect(markup).toContain(
+      "group-data-[sidebar-auto-hide=closed]/sidebar-wrapper:delay-[var(--sidebar-overlay-transition-duration)]",
+    );
+    expect(markup).toContain("transition-[opacity,visibility]");
+  });
+
   it("uses the larger leading inset only when the top fade is enabled", () => {
     const timelineEntries = [buildUserTimelineEntry("Hello")];
 
