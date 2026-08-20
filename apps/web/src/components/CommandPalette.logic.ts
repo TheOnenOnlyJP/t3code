@@ -9,6 +9,7 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/threadSort";
+import type { ThemeAppearance } from "../themePalette";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 
@@ -122,6 +123,27 @@ export interface CommandPaletteView {
   readonly addonIcon: ReactNode;
   readonly groups: ReadonlyArray<CommandPaletteGroup>;
   readonly initialQuery?: string;
+}
+
+export function buildAppearanceActionItems(input: {
+  readonly lightIcon: ReactNode;
+  readonly darkIcon: ReactNode;
+  readonly setAppearanceMode: (appearance: ThemeAppearance) => boolean;
+}): readonly [CommandPaletteActionItem, CommandPaletteActionItem] {
+  const actionFor = (appearance: ThemeAppearance, icon: ReactNode): CommandPaletteActionItem => ({
+    kind: "action",
+    value: `action:appearance:${appearance}`,
+    searchTerms: [appearance, `${appearance} theme`, "appearance", "theme"],
+    title: `Switch to ${appearance} theme`,
+    icon,
+    run: async () => {
+      if (!input.setAppearanceMode(appearance)) {
+        throw new Error("Couldn’t save theme selection.");
+      }
+    },
+  });
+
+  return [actionFor("light", input.lightIcon), actionFor("dark", input.darkIcon)];
 }
 
 export function enumerateCommandPaletteItems(

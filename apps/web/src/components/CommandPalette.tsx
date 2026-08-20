@@ -42,10 +42,12 @@ import {
   FolderPlusIcon,
   LinkIcon,
   MessageSquareIcon,
+  MoonIcon,
   PaletteIcon,
   ServerIcon,
   SettingsIcon,
   SquarePenIcon,
+  SunIcon,
   TextSearchIcon,
 } from "lucide-react";
 import {
@@ -113,6 +115,7 @@ import {
 import {
   ADDON_ICON_CLASS,
   browseInputEndPaddingClass,
+  buildAppearanceActionItems,
   buildBrowseGroups,
   buildProjectActionItems,
   buildRootGroups,
@@ -591,7 +594,7 @@ function OpenCommandPaletteDialog(props: {
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const threads = useThreadShells();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const { theme, themeHalves, resolvedTheme } = useTheme();
+  const { theme, themeHalves, resolvedTheme, setAppearanceMode } = useTheme();
   const providers = useAtomValue(primaryServerProvidersAtom);
   const providerEntryByEnvironmentAndInstanceId = useMemo(() => {
     const map = new Map<string, ProviderInstanceEntry>();
@@ -1595,6 +1598,14 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
+
+  actionItems.push(
+    ...buildAppearanceActionItems({
+      lightIcon: <SunIcon className={ITEM_ICON_CLASS} />,
+      darkIcon: <MoonIcon className={ITEM_ICON_CLASS} />,
+      setAppearanceMode,
+    }),
+  );
 
   actionItems.push({
     kind: "action",

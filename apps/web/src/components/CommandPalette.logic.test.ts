@@ -3,6 +3,7 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools
 import type { Thread } from "../types";
 import {
   browseInputEndPaddingClass,
+  buildAppearanceActionItems,
   buildBrowseGroups,
   buildThreadActionItems,
   enumerateCommandPaletteItems,
@@ -11,6 +12,52 @@ import {
   reduceCommandPaletteUiState,
   type CommandPaletteGroup,
 } from "./CommandPalette.logic";
+
+describe("buildAppearanceActionItems", () => {
+  it("makes light and dark directly searchable and applies the selected appearance", async () => {
+    const setAppearanceMode: Parameters<typeof buildAppearanceActionItems>[0]["setAppearanceMode"] =
+      vi.fn(() => true);
+    const items = buildAppearanceActionItems({
+      lightIcon: null,
+      darkIcon: null,
+      setAppearanceMode,
+    });
+    const activeGroups: CommandPaletteGroup[] = [{ value: "actions", label: "Actions", items }];
+
+    const lightGroups = filterCommandPaletteGroups({
+      activeGroups,
+      query: "light",
+      isInSubmenu: false,
+      projectSearchItems: [],
+      threadSearchItems: [],
+    });
+    const darkGroups = filterCommandPaletteGroups({
+      activeGroups,
+      query: "dark",
+      isInSubmenu: false,
+      projectSearchItems: [],
+      threadSearchItems: [],
+    });
+
+    expect(lightGroups[0]?.items.map((item) => item.value)).toEqual(["action:appearance:light"]);
+    expect(darkGroups[0]?.items.map((item) => item.value)).toEqual(["action:appearance:dark"]);
+
+    await items[0].run();
+    await items[1].run();
+    expect(setAppearanceMode).toHaveBeenNthCalledWith(1, "light");
+    expect(setAppearanceMode).toHaveBeenNthCalledWith(2, "dark");
+  });
+
+  it("reports a failed appearance preference write", async () => {
+    const [lightItem] = buildAppearanceActionItems({
+      lightIcon: null,
+      darkIcon: null,
+      setAppearanceMode: () => false,
+    });
+
+    await expect(lightItem.run()).rejects.toThrow("Couldn’t save theme selection.");
+  });
+});
 
 describe("browseInputEndPaddingClass", () => {
   it("reserves the widest space for the create action", () => {
