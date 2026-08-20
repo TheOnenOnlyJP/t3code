@@ -27,6 +27,18 @@ afterEach(() => {
 });
 
 describe("theme failure handling", () => {
+  it("uses Haze for a fresh install", async () => {
+    vi.stubGlobal("window", {
+      localStorage: createStorage(),
+      matchMedia: () => ({ matches: false }),
+    });
+
+    const { readAppearanceModePreference, readThemePreference } = await import("./useTheme");
+
+    expect(readThemePreference()).toBe("haze");
+    expect(readAppearanceModePreference("haze")).toBe("dark");
+  });
+
   it("preserves exact storage causes and operation context", async () => {
     const readCause = new Error("storage read blocked");
     const writeCause = new Error("storage quota exceeded");

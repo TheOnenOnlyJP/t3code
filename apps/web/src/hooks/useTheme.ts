@@ -9,6 +9,7 @@ import {
   canonicalThemePreference,
   isKnownThemePreference,
   getThemePreferenceMode,
+  HAZE_THEME_ID,
   parseThemeHalves,
   resolveDesktopTheme,
   resolveThemeAppearance,
@@ -36,10 +37,10 @@ type DesktopThemeBridge = Pick<DesktopBridge, "setTheme">;
 const STORAGE_KEY = "t3code:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
-  theme: "system",
-  systemDark: false,
-  followSystem: true,
-  appearanceMode: "system",
+  theme: HAZE_THEME_ID,
+  systemDark: true,
+  followSystem: false,
+  appearanceMode: "dark",
   themeHalves: null,
 };
 

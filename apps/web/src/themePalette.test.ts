@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { BUILT_IN_THEMES } from "@t3tools/shared/themePalettes";
+import { BUILT_IN_THEME_IDS, BUILT_IN_THEMES } from "@t3tools/shared/themePalettes";
 
 import {
   applyThemeColorPreview,
@@ -29,6 +29,7 @@ import {
   T3_CHAT_THEME,
   EMBER_THEME,
   GROVE_THEME,
+  HAZE_THEME,
   IRIS_THEME,
   OCEAN_THEME,
   updateCustomTheme,
@@ -79,6 +80,10 @@ function contrastRatio(first: string, second: string): number {
 }
 
 describe("theme files", () => {
+  it("keeps the built-in registry aligned with its public ids", () => {
+    expect(BUILT_IN_THEMES.map((theme) => theme.id)).toEqual(BUILT_IN_THEME_IDS);
+  });
+
   it("keeps every built-in palette value in canonical OKLCH form", () => {
     for (const theme of BUILT_IN_THEMES) {
       for (const colors of [theme.colors, ...Object.values(theme.variants ?? {})]) {
@@ -430,6 +435,52 @@ describe("theme files", () => {
       );
       expect(contrastRatio(colors.sidebarForeground, colors.sidebar)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(colors.accentForeground, colors.accent)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("keeps Haze faithful to the warm dark palette", () => {
+    expect(HAZE_THEME.appearance).toBe("dark");
+    expect(getThemeModes(HAZE_THEME)).toEqual(["dark"]);
+    expectThemeColors(HAZE_THEME.colors, {
+      canvas: "#24201b",
+      surface: "#191512",
+      surfaceRaised: "#2e2924",
+      surfaceOverlay: "#39332d",
+      text: "#cbc7bf",
+      mutedForeground: "#9a948d",
+      border: "#443f39",
+      input: "#27231f",
+      secondary: "#312c26",
+      accentSurface: "#42392f",
+      accent: "#c0a684",
+      messageAction: "#ba9778",
+      messageSurface: "#352e27",
+      codeBackground: "#1c1915",
+      sidebar: "#1b1814",
+      sidebarControlSurface: "#312c26",
+      sidebarRowSelected: "#3e362e",
+      terminalBackground: "#1c1915",
+      error: "#ce8b7d",
+      warning: "#c9ad7e",
+    });
+    expect(getThemeDefinition(HAZE_THEME.id)).toBe(HAZE_THEME);
+    expect(themeAllowsSidebarArtwork(HAZE_THEME.id)).toBe(false);
+    expect(contrastRatio(HAZE_THEME.colors.text, HAZE_THEME.colors.canvas)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(
+      contrastRatio(HAZE_THEME.colors.messageForeground, HAZE_THEME.colors.messageSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(HAZE_THEME.colors.messageActionForeground, HAZE_THEME.colors.messageAction),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(HAZE_THEME.colors.placeholder, HAZE_THEME.colors.surfaceRaised),
+    ).toBeGreaterThanOrEqual(4.5);
+
+    for (const color of Object.values(HAZE_THEME.colors)) {
+      expect(asHex(color)).not.toBe("#ffffff");
+      expect(asHex(color)).not.toBe("#f5f5f5");
     }
   });
 

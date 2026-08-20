@@ -11,6 +11,7 @@ import {
   T3_CHAT_THEME,
   EMBER_THEME,
   GROVE_THEME,
+  HAZE_THEME,
   IRIS_THEME,
   OCEAN_THEME,
   THEME_APPEARANCE_MODE_STORAGE_KEY,
@@ -113,7 +114,7 @@ function runtimeResolvedAppearance(
   invalidateCustomThemes();
   try {
     const raw = storage[THEME_STORAGE_KEY] ?? null;
-    const theme = raw !== null && isKnownThemePreference(raw) ? raw : "system";
+    const theme = raw !== null && isKnownThemePreference(raw) ? raw : HAZE_THEME.id;
     const followRaw = storage[THEME_FOLLOW_SYSTEM_STORAGE_KEY] ?? null;
     const appearanceRaw = storage[THEME_APPEARANCE_MODE_STORAGE_KEY] ?? null;
     const appearanceMode =
@@ -154,7 +155,8 @@ describe("index.html boot script", () => {
     storage: Record<string, string>;
     prefersDark: boolean;
   }> = [
-    { name: "no stored preference on a dark OS", storage: {}, prefersDark: true },
+    { name: "no stored preference uses Haze on a dark OS", storage: {}, prefersDark: true },
+    { name: "no stored preference uses Haze on a light OS", storage: {}, prefersDark: false },
     {
       name: "T3 Chat follows a dark OS",
       storage: { [THEME_STORAGE_KEY]: "t3-chat", [THEME_FOLLOW_SYSTEM_STORAGE_KEY]: "true" },
@@ -226,7 +228,7 @@ describe("index.html boot script", () => {
       prefersDark: true,
     },
     {
-      name: "a removed custom theme falls back to system",
+      name: "a removed custom theme falls back to Haze",
       storage: { [THEME_STORAGE_KEY]: "gone-theme" },
       prefersDark: true,
     },
@@ -342,12 +344,17 @@ describe("index.html boot script", () => {
   // boot script's hand-maintained copy into a CI-enforced contract: any
   // palette change breaks this test until the copy in index.html is updated.
   it("keeps every built-in boot splash in sync with the real palettes", () => {
-    for (const theme of [T3_CHAT_THEME, GROVE_THEME, OCEAN_THEME, EMBER_THEME, IRIS_THEME]) {
-      // The boot script resolves every built-in from a light base appearance.
-      expect(theme.appearance).toBe("light");
+    for (const theme of [
+      T3_CHAT_THEME,
+      GROVE_THEME,
+      OCEAN_THEME,
+      EMBER_THEME,
+      IRIS_THEME,
+      HAZE_THEME,
+    ]) {
       for (const mode of ["light", "dark"] as const) {
         const colors = getThemeColorsForMode(theme, mode);
-        expect(colors).not.toBeNull();
+        if (!colors) continue;
         const boot = runBootScript({
           storage: {
             [THEME_STORAGE_KEY]: theme.id,
@@ -480,7 +487,7 @@ describe("index.html boot script", () => {
     expect(boot.metaContent).toBe(DEFAULT_DARK_CHROME);
   });
 
-  it("ignores malformed custom theme entries before applying a splash", () => {
+  it("falls back to Haze when a stored custom theme is malformed", () => {
     const boot = runBootScript({
       storage: {
         [THEME_STORAGE_KEY]: "broken",
@@ -491,28 +498,30 @@ describe("index.html boot script", () => {
       prefersDark: false,
     });
 
-    expect(boot.themeId).toBeUndefined();
-    expect(boot.themeSelected).toBeUndefined();
-    expect(boot.backgroundColor).toBe("#ffffff");
-    expect(boot.metaContent).toBe("#ffffff");
+    expect(boot.themeId).toBe(HAZE_THEME.id);
+    expect(boot.themeSelected).toBe("true");
+    expect(boot.backgroundColor).toBe(HAZE_THEME.colors.chrome);
+    expect(boot.metaContent).toBe(HAZE_THEME.colors.chrome);
   });
 
-  it("leaves unknown preferences unthemed so the runtime default applies", () => {
+  it("falls back to Haze for unknown preferences", () => {
     const boot = runBootScript({
       storage: { [THEME_STORAGE_KEY]: "gone-theme" },
       prefersDark: true,
     });
-    expect(boot.themeId).toBeUndefined();
-    expect(boot.themeSelected).toBeUndefined();
+    expect(boot.themeId).toBe(HAZE_THEME.id);
+    expect(boot.themeSelected).toBe("true");
     expect(boot.isDark).toBe(true);
   });
 
-  it("follows the OS appearance when storage is unavailable", () => {
+  it("falls back to Haze when storage is unavailable", () => {
     const light = runBootScript({ storageThrows: true, prefersDark: false });
-    expect(light.isDark).toBe(false);
-    expect(light.themeId).toBeUndefined();
+    expect(light.isDark).toBe(true);
+    expect(light.themeId).toBe(HAZE_THEME.id);
+    expect(light.backgroundColor).toBe(HAZE_THEME.colors.chrome);
 
     const dark = runBootScript({ storageThrows: true, prefersDark: true });
     expect(dark.isDark).toBe(true);
+    expect(dark.themeId).toBe(HAZE_THEME.id);
   });
 });

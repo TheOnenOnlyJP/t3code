@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   EMBER_THEME,
   GROVE_THEME,
+  HAZE_THEME,
   IRIS_THEME,
   OCEAN_THEME,
   T3_CHAT_THEME,
@@ -46,6 +47,7 @@ const builtInThemeModes = [
   OCEAN_THEME,
   EMBER_THEME,
   IRIS_THEME,
+  HAZE_THEME,
 ].flatMap((theme) =>
   [theme.colors, theme.variants?.dark].filter((colors): colors is ThemeColors => !!colors),
 );
