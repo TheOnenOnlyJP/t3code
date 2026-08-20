@@ -1,4 +1,4 @@
-export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
+export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris", "haze"] as const;
 
 /** The mobile app's own hand-tuned palette, which is not part of the built-in library. */
 export const MOBILE_DEFAULT_THEME_ID = "t3-code";
@@ -8,7 +8,14 @@ export const MOBILE_DEFAULT_THEME_ID = "t3-code";
  * (the app-store screenshot harness) can validate a requested theme without
  * importing React Native application code.
  */
-export const MOBILE_THEME_IDS = [MOBILE_DEFAULT_THEME_ID, ...BUILT_IN_THEME_IDS] as const;
+export const MOBILE_THEME_IDS = [
+  MOBILE_DEFAULT_THEME_ID,
+  "t3-chat",
+  "grove",
+  "ocean",
+  "ember",
+  "iris",
+] as const;
 
 export type BuiltInThemeId = (typeof BUILT_IN_THEME_IDS)[number];
 export type MobileThemeId = (typeof MOBILE_THEME_IDS)[number];
@@ -727,12 +734,79 @@ export const IRIS_THEME: ThemeDefinition = {
   sidebarArtwork: true,
 };
 
+/** Josh's warm, low-glare dark palette. */
+export const HAZE_THEME: ThemeDefinition = {
+  id: "haze",
+  label: "Haze",
+  appearance: "dark",
+  colors: {
+    canvas: "oklch(0.246239 0.011054 73.411)",
+    chrome: "oklch(0.246239 0.011054 73.411)",
+    toolbar: "oklch(0.246239 0.011054 73.411)",
+    toolbarForeground: "oklch(0.830622 0.011875 84.582)",
+    toolbarBorder: "oklch(0.370704 0.012176 72.451)",
+    toolbarControl: "oklch(0.296431 0.01284 72.336)",
+    toolbarControlForeground: "oklch(0.830622 0.011875 84.582)",
+    toolbarControlHover: "oklch(0.350852 0.020988 70.007)",
+    surface: "oklch(0.199394 0.008759 59.12)",
+    surfaceRaised: "oklch(0.284622 0.011588 67.334)",
+    surfaceOverlay: "oklch(0.325373 0.013447 67.325)",
+    text: "oklch(0.830622 0.011875 84.582)",
+    textMuted: "oklch(0.669597 0.012407 71.837)",
+    border: "oklch(0.370704 0.012176 72.451)",
+    input: "oklch(0.259136 0.009497 67.388)",
+    focus: "oklch(0.739385 0.055599 74.203)",
+    accent: "oklch(0.739385 0.055599 74.203)",
+    accentForeground: "oklch(0.199394 0.008759 59.12)",
+    secondary: "oklch(0.296431 0.01284 72.336)",
+    secondaryForeground: "oklch(0.830622 0.011875 84.582)",
+    muted: "oklch(0.296431 0.01284 72.336)",
+    mutedForeground: "oklch(0.669597 0.012407 71.837)",
+    placeholder: "oklch(0.669597 0.012407 71.837)",
+    secondaryLabel: "oklch(0.669597 0.012407 71.837)",
+    iconMuted: "oklch(0.669597 0.012407 71.837)",
+    error: "oklch(0.700545 0.08521 32.287)",
+    errorForeground: "oklch(0.705452 0.08521 32.287)",
+    errorSurface: "oklch(0.327264 0.023409 45.874)",
+    warning: "oklch(0.760852 0.070551 80.259)",
+    warningForeground: "oklch(0.760852 0.070551 80.259)",
+    warningSurface: "oklch(0.339643 0.02251 77.785)",
+    update: "oklch(0.739385 0.055599 74.203)",
+    updateForeground: "oklch(0.804486 0.055599 74.203)",
+    updateSurface: "oklch(0.419178 0.027137 74.07)",
+    accentSurface: "oklch(0.350852 0.020988 70.007)",
+    accentSurfaceForeground: "oklch(0.830622 0.011875 84.582)",
+    messageSurface: "oklch(0.306399 0.015894 67.175)",
+    messageForeground: "oklch(0.830622 0.011875 84.582)",
+    messageAction: "oklch(0.700724 0.060141 63.131)",
+    messageActionForeground: "oklch(0.199394 0.008759 59.12)",
+    messageActionHover: "oklch(0.737423 0.052426 63.409)",
+    codeBackground: "oklch(0.215399 0.008976 75.138)",
+    codeForeground: "oklch(0.830622 0.011875 84.582)",
+    sidebar: "oklch(0.21103 0.009018 75.128)",
+    sidebarForeground: "oklch(0.830622 0.011875 84.582)",
+    sidebarMutedForeground: "oklch(0.669597 0.012407 71.837)",
+    sidebarControlSurface: "oklch(0.296431 0.01284 72.336)",
+    sidebarRowHover: "oklch(0.276722 0.013499 69.657)",
+    sidebarRowActive: "oklch(0.314284 0.016056 67.98)",
+    sidebarRowSelected: "oklch(0.338709 0.017714 67.168)",
+    sidebarBorder: "oklch(0.370704 0.012176 72.451)",
+    terminalBackground: "oklch(0.215399 0.008976 75.138)",
+    terminalForeground: "oklch(0.830622 0.011875 84.582)",
+    terminalCursor: "oklch(0.739385 0.055599 74.203)",
+    terminalSelection: "oklch(0.417179 0.027451 74.436)",
+    terminalScrollbar: "oklch(0.574293 0.004722 21.32)",
+    terminalScrollbarHover: "oklch(0.672778 0.004997 1.275)",
+  },
+};
+
 export const BUILT_IN_THEMES: ReadonlyArray<ThemeDefinition> = [
   T3_CHAT_THEME,
   GROVE_THEME,
   OCEAN_THEME,
   EMBER_THEME,
   IRIS_THEME,
+  HAZE_THEME,
 ];
 
 export function getBuiltInTheme(id: string): ThemeDefinition | null {

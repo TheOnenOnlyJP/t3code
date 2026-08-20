@@ -62,9 +62,14 @@ describe("mobile themes", () => {
     );
   });
 
-  it("shares all built-in desktop palettes", () => {
-    expect(BUILT_IN_THEMES.map((theme) => theme.id)).toEqual(BUILT_IN_THEME_IDS);
-    for (const themeId of BUILT_IN_THEME_IDS) {
+  it("shares every dual-mode built-in desktop palette", () => {
+    const mobileBuiltInThemeIds = MOBILE_THEME_IDS.filter(
+      (themeId) => themeId !== DEFAULT_MOBILE_THEME_ID,
+    );
+    expect(mobileBuiltInThemeIds.every((themeId) => BUILT_IN_THEME_IDS.includes(themeId))).toBe(
+      true,
+    );
+    for (const themeId of mobileBuiltInThemeIds) {
       expect(getMobileThemeVariables(themeId, "light")["--color-screen"]).toMatch(/^#/);
       expect(getMobileThemeVariables(themeId, "dark")["--color-screen"]).toMatch(/^#/);
     }
@@ -199,7 +204,8 @@ describe("mobile themes", () => {
       }
     }
 
-    for (const themeId of BUILT_IN_THEME_IDS) {
+    for (const themeId of MOBILE_THEME_IDS) {
+      if (themeId === DEFAULT_MOBILE_THEME_ID) continue;
       for (const appearance of ["light", "dark"] as const) {
         const variables = getMobileThemeVariables(themeId, appearance);
         expect(
